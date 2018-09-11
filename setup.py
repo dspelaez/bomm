@@ -18,7 +18,7 @@ from setuptools import setup
 setup(name = 'bomm',
       version = '0.1',
       description = 'Program to handle BOMM data',
-      url = '',
+      url = 'https://github.com/dspelaez/bomm',
       author = 'Daniel Santiago',
       author_email = 'dspelaez@gmail.com',
       license = 'GNU',
