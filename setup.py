@@ -13,7 +13,7 @@ File:     setup.py
 Created:  2018-06-13 16:46
 """
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(name = 'bomm',
       version = '0.1',
@@ -22,5 +22,10 @@ setup(name = 'bomm',
       author = 'Daniel Santiago',
       author_email = 'dspelaez@gmail.com',
       license = 'GNU',
-      packages = ['bomm'],
+      packages = find_packages(),
+      install_requires = [
+          "numpy==1.14.3"
+          "pandas==0.23.0"
+          "PyYAML==3.13"
+          ],
       zip_safe = False)
