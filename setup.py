@@ -24,8 +24,8 @@ setup(name = 'bomm',
       license = 'GNU',
       packages = find_packages(),
       install_requires = [
-          "numpy==1.14.3"
-          "pandas==0.23.0"
+          "numpy==1.14.3",
+          "pandas==0.23.0",
           "PyYAML==3.13"
           ],
       zip_safe = False)
