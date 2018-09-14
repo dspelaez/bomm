@@ -274,6 +274,15 @@ class ReadRawData(object):
         # load observed data
         obs = self._readfile("gps", date, columns)
 
+        # assign sign to latitud or longitude
+        sign = np.vectorize(lambda s: -1 if s in ["S", "W"] else 1)
+        obs["latitude"] *= sign(obs["lat_sign"])
+        obs["longitude"] *= sign(obs["lon_sign"])
+
+        # remove items
+        for a in ["status","lon_sign", "lat_sign"]:
+            obs.pop(a)
+
         # TODO: notation for coordinates is kind of unnatural
         #       they must be transformed into decimal angles
         #       dec = DDD + MM/60 + SS/3600
