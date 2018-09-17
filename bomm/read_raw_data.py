@@ -16,6 +16,7 @@ import numpy as np
 import datetime as dt
 import pandas as pd
 import csv
+import sys
 import yaml
 
 
@@ -433,7 +434,7 @@ class ReadRawData(object):
     # }}}
 
     # read any sensor {{{
-    def read(self, sensor, date):
+    def read(self, sensor, date, logfile=sys.stderr):
         """Wrapper function to handle errors when reading data for each sensor."""
 
         function = eval(f"self.{sensor}")
@@ -443,7 +444,7 @@ class ReadRawData(object):
 
         # if file does not exist or not valid
         except Exception as e:
-            print(e)
+            print(e, file=logfile)
             return self._returninvalid(sensor, date)
     # }}}
 
