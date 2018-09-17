@@ -445,7 +445,7 @@ class ReadRawData(object):
         # if file does not exist or not valid
         except Exception as e:
             error = f"{sensor:10s} ---> {date} : {e}"
-            print(, file=logfile)
+            print(error, file=logfile)
             return self._returninvalid(sensor, date)
     # }}}
 
