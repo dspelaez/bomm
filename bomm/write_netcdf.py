@@ -8,26 +8,6 @@
 #  Distributed under terms of the GNU/GPL license.
 # =============================================================
 
-"""This module contains functions to write a NetCDF4 file from the BOMM data.
-
-The module was writen to convert the BOMM row data to a distributable NetCDF4
-format. The functions only require the metatadata in a YAML file. This will
-write a NetCDF4 file for each day as specified in the YAML file. Each NetCDF4
-file contains one group per buoy sensor and each group contains the variables
-specified in the YAML file as well as the metadata.
-
-Example:
-    To run this module you just need the YAML filename as follows:
-        
-        >>> import bomm
-        >>> metafile = "bomm.yml"
-        >>> bomm.write_netcdf(metafile)
-
-Author:
-    Daniel Santiago <dpelaez@cicese.edu.mx>
-
-"""
-
 # --- import libs ---
 import numpy as np
 import datetime as dt
@@ -139,6 +119,26 @@ def write_group(b, dataset, sensor, day, logfile):
 # write netcdf {{{
 def write_netcdf(metafile):
 
+    """This module contains functions to write a NetCDF4 file.
+
+    The module was writen to convert the BOMM row data to a distributable
+    NetCDF4 format. The functions only require the metatadata in a YAML file.
+    This will write a NetCDF4 file for each day as specified in the YAML file.
+    Each NetCDF4 file contains one group per buoy sensor and each group contains
+    the variables specified in the YAML file as well as the metadata.
+
+    Example:
+        To run this module you just need the YAML filename as follows:
+            
+            >>> import bomm
+            >>> metafile = "bomm.yml"
+            >>> bomm.write_netcdf(metafile)
+
+    Author:
+        Daniel Santiago <dpelaez@cicese.edu.mx>
+
+    """
+
     # create instance of the bomm.ReadRowData class
     b = bomm.ReadRawData(metafile)
 
@@ -191,9 +191,7 @@ def write_netcdf(metafile):
 
 
 if __name__ == "__main__":
-
-    # write netcdf
-    write_netcdf(metafile="bomm.yml")
+    pass
 
 
 # === end of file ===
