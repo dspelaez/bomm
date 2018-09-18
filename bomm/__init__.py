@@ -14,3 +14,4 @@ Created:  2018-06-13 17:05
 """
 
 from .read_raw_data import ReadRawData
+from .write_netcdf import write_netcdf
