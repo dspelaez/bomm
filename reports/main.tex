@@ -1,0 +1,450 @@
+%!TEX root = ../thesis.tex
+%!TEX TS-program = lualatex
+% vim:fenc=utf-8
+% vim:fdm=marker
+
+
+
+% preambulo latex 
+\documentclass[11pt]{article}
+\usepackage[spanish,es-lcroman,es-nodecimaldot]{babel}
+\usepackage{amsmath,amsfonts,amssymb,units,xcolor}
+\usepackage{graphicx,tabularx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{blindtext}
+\usepackage{lastpage}
+\usepackage{fontspec}\usepackage{titlesec}
+\usepackage[export]{adjustbox}
+\usepackage[letterpaper,left=3cm,right=2cm,top=2cm,bottom=2cm]{geometry}
+\usepackage[sort&compress,authoryear]{natbib}
+\usepackage[justification=centerlast,labelfont=bf,font=scriptsize,
+            margin=1.5cm,labelsep=period]{caption}
+
+
+% definir variables
+% -----------------
+%\newcommand{\bomm}{BOMM1-ITS}
+
+
+% configuracion de los paquetes
+% -----------------------------
+
+% configuracion de la fuente
+\DeclareTextFontCommand{\emph}{\slshape}
+\renewcommand\familydefault{\sfdefault}
+
+% espaciado de las lineas para las págines iniciales
+\renewcommand{\baselinestretch}{1.25} 
+\setlength{\parindent}{0mm}
+\setlength{\parskip}{2.5mm}
+
+% hipervinculos
+\hypersetup{%
+    colorlinks,
+    linkcolor={red!50!black},
+    citecolor={blue!50!black},
+    urlcolor={blue!80!black}
+    }
+
+% encabezado
+\pagestyle{fancy}
+\lhead{\includegraphics[height=0.75cm,valign=c]{./logo_cicese.jpg}\vspace{1pt}}
+\chead{}
+\rhead{Pág. \thepage/\pageref{LastPage}}
+\lfoot{}
+\cfoot{}
+\rfoot{}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% pagina de titulo
+\title{
+  \vspace{2em}
+  \Large{\bfseries Reporte Técnico} \\
+  \vspace{3em}
+  \LARGE{\bfseries
+    Base de datos de las observaciones de las Boyas Oceanográficas y de
+    Meteorología Marina (BOMM)
+  } \\
+  \vspace{3em}
+}
+%
+\author{
+  \includegraphics[height=2cm,valign=c]{./logo_cicese.jpg} \\
+  \vspace{0.5ex} \\
+  Grupo de Oleaje \\
+  \small{Departamento de Oceanografía Física} \\
+  \small{Centro de Investigación Científica y de Educación Superior} \\
+  \small{Ensenada, B.C., México} \\
+  \vspace{2em} \\
+}
+\date{
+  \today \\
+  Revisión 1.0
+  \vspace{2em} \\
+  \begin{figure}
+    \centering
+    \includegraphics[height=2.1cm,valign=c]{./logo_cigom.jpeg}
+    \hspace{0.5cm}
+    \includegraphics[height=2.3cm,valign=c]{./logo_sener.jpg}
+  \end{figure}
+  \vfill
+}
+
+
+%  empezar documento    
+% =============================================================================
+\begin{document}
+
+% crear titulo
+\maketitle
+\thispagestyle{empty}
+\newpage
+\thispagestyle{fancy}
+\tableofcontents
+\newpage
+
+% introduccion {{{
+\section{Introducción}
+\label{sec:introduccion}
+
+En este reporte técnico se presenta una descripción detallada del conjunto de
+datos observados con las Boyas Oceanográficas y de Meterología Marina (BOMM).
+
+
+% niveles de procesamiento {{{
+\subsection{Niveles de procesamiento}
+\label{sub:niveles_de_procesamiento}
+
+Para los fines de este trabajo, se definieron cuatro niveles de procesamiento,
+los cuales se describen a continuación:
+
+\begin{description}
+  \item[Nivel 0] En este nivel están los datos binarios que se escriben en la
+    memoria interna de los instrumentos y los datos que son transmitidos a
+    través de comunicación entre los instrumentos y la computadora de la boya.
+    Estos datos están en formato ASCII. Estos datos no tienen ningún control de
+    calidad ni tienen incorporados los metadatos.
+
+  \item[Nivel 1] El primer nivel de procesamiento consiste en generar la base de
+    datos en formato netCDF4 a partir de los datos de Nivel 0. Se hace una
+    acomodación de los datos en una secuencia creciente del tiempo de acuerdo a
+    su tasa de muestreo. Adicionalmente, se llenan los espacios vacíos con
+    banderas de datos no válidos (NaN). Se incorporan los metadatos e
+    información adicional para realizar correcciones y calibraciones.
+    \textbf{Ejemplos:} \emph{aceleraciones y tasas de cambio de los ángulos en el
+    marco de referencia del sensor de movimiento, velocidad del viento sin
+    corregir por el movimiento de la boya, posición de los WaveStaff para el
+    cálculo de los espectros direccionales.}
+
+  \item[Nivel 2] En este nivel se presentan las variables derivadas a la misma
+    tasa de muestreo del los datos del Nivel 1. Se aplican las correcciones y
+    calibraciones necesarias. Se aplican un control de calidad de los
+    datos de acuerdo a criterios físicos y estadísticos.
+    \textbf{Ejemplos:} \emph{elevación de la superficie libre del mar, velocidad
+    del viento corregida por el movimiento de la boya, perfil de corrientes
+    superficiales en el marco de referencia inercial.}
+
+  \item[Nivel 3] En el último nivel se presentan las variables resultantes de
+    agrupar y combinar los datos en un tiempo determinado. Específicamente, se
+    presentan promedios de las variables provenientes de diferentes sensores. Se
+    aplican métodologías establecidas para el cálculo de variables derivadas.
+    \textbf{Ejemplos:} \emph{espectros direccionales, esfuerzos de Reynolds, rapidez y
+    dirección del viento, parametros integrales del oleaje, etc.}
+
+\end{description}
+
+% }}}
+
+% archivos en netcdf {{{
+\subsection{Formato NetCDF}
+\label{sub:formato_netcdf}
+
+Según el SMID de CIGOM (\url{http://smid.cigom.org/smid-docs/}), en la Línea 1
+del proyecto se estableció que la entrega de conjuntos de datos será en formato
+NetCDF ya que es un formato ampliamente utilizado por la comunidad científica y
+además es compatible con una gran variedad de software de análisis y
+visualización. NetCDF (\emph{Network Common Data Form}) es un conjunto de
+bibliotecas de software y estándares de formato de datos, el cual es
+independiente de la arquitectura de la máquina, es de código abierto, y permite
+la creación, acceso y distribución de datos cientificos orientados a arreglos.
+Una de sus mayores ventajas es que es autodescriptivo, es decir, los archivos
+contienen los datos y los metadatos. Otra de sus ventajas es la portabilidad y
+la escalabilidad, que permiten una fácil distribución y el acceso a subconjuntos
+más pequeños de los datos que están alojados en un servidor remoto.
+Específicamente la versión 4 del formato NetCDF permite la separación de los
+datos en grupos, lo cual es muy útil cuando se trabajan con datos de diferentes
+sensores y medidos a diferentes tasas de muestreo en el mismo dataset, como es
+el caso de los datos de las boyas oceanográficas.
+
+
+% }}}
+
+% }}}
+
+% Procesamiento de los datos {{{
+\section{Descripción de la base de datos}%
+\label{sec:descripcion_de_la_base_de_datos}
+
+% datos de nivel 0 {{{
+\subsection{Nivel 0} 
+\label{sub:nivel_0}
+
+Se consideran como datos crudos los datos que se escriben directamente en el
+disco duro de la boya. Estos datos no tiene ningún tipo de procesamiento, y se
+escriben tal cual como salen de cada uno de los sensores.  Los datos crudos son
+los datos de nivel 0 y tienen la siguiente estructura:
+
+\begin{verbatim}
+  data/
+  |-- level0/
+  |   |-- acelerometro/
+  |   |-- anemometro/
+  |   |-- binary/
+  |   |-- gps/
+  |   |-- marvi/
+  |   |-- maximet/
+  |   |-- msg/
+  |   |-- proceanus/
+  |   |-- rbr/
+  |   |-- signature/
+  |   |-- vector/
+  |   `-- wstaff/
+  |-- level1/
+  |-- level2/
+  `-- level3/
+\end{verbatim}
+
+Se genera una carpeta por cada sensor. En la mayoría de los sensores (los de alta
+frecuencia) se escribe una carpeta por año, una por mes, una por por día y una por
+hora; y se escribe un archivo cada 10 minutos. Por ejemplo, la ruta del archivo que
+corresponde a las 10:20 am del 5 de enero de 2018 del anemómetro sónico es:
+
+\begin{verbatim}
+  ./data/level0/anemometro/2018/01/05/10/anemometro-1801051020.csv
+\end{verbatim}
+
+Por otra lado, los sensores de baja frecuencia, es decir, los que reportan
+promedios de los datos, como el sensor de CO2 y el CTD, se escribe una carpeta
+por año y una carpeta por mes, y se escribe un archivo por día, el cual contiene
+los datos a la tasa de muestreo específica.
+
+En la carpeta \texttt{binary} se almacenan los archivos binarios originales de
+los sensores que así lo permiten. Por ejmplo, en el caso de la BOMM1-ITS que
+estuvo midiendo cerca de la Isla de Todos Santos, entre noviembre de 2017 y
+febrero de 2018, los sensores que permitieron almacenar los datos binarios
+fueron el acelerómetro (Ekinox2-M), el MARVI (Módulo de Adquisición y Regulación
+de Voltaje Inteligente) y el velocímetro Vector. En la carpeta \texttt{msg} se
+almacenan los promedios de los datos que son enviados vía satélite. En las
+carpetas \texttt{level1}, \texttt{level2} y \texttt{level3} se almacenan los
+datos procesados en los diferentes niveles, los cuales se describen en las
+siguientes secciones.
+% }}}
+
+% datos de nivel 1 {{{
+\subsection{Nivel 1}
+\label{sub:nivel_1}
+
+\subsubsection*{Análisis de los datos}
+
+Se realizó un análisis y procesamiento de los datos crudos para convertirlos al
+formato netCDF. Para esto, primero se hace una acomodación de los datos en una
+secuencia creciente de tiempo de acuerdo a su tasa de muestreo. Por ejemplo,
+algunos sensores presentan imprecisiones en su reloj interno, lo que implica que
+la tasa de muestreo a la que se programan no sea constante en el tiempo lo cual
+genera pequeñas variaciones, que hacen que en ocasiones se tengan más o menos
+datos de los que se esperan en cierto intervalo de tiempo. Por ejemplo, los
+alambres de capacitancia se programan para medir a una tasa de muestreo de 20
+datos por segundo, pero debido a la deriva del reloj, en ocasiones se tiene 19 o
+21 datos en un segundo. Para solucionar esto, se genera una arreglo del tiempo
+de acuerdo a la tasa de muestreo del instrumento y se aplica una interpolación
+lineal de los datos. Si hay más del 10\% de datos inválidos dentro de un
+intervalo de 10 minutos, ese intervalo se considera como inválido. Cuando son
+menos de 10\% los datos inválidos y estos no están de forma continua en el
+tiempo, los datos inválidos se reemplazan por promedios del intervalo de 10
+minutos con el fin de aplicar la interpolación.  Finalmente, cuando se tiene
+espacios vacíos, es decir, intervalos de tiempo donde la boya no registró datos,
+se genera un arreglo con datos nó válidos (NaN) del mismo tamaño y se llenan
+dichos espacios vacíos. En los datos de Nivel 1 se eliminan también los datos en
+los que la boya no estaba instalada. Estos datos si se conservan en el Nivel 0.
+
+\subsubsection*{Estructura de los archivos}%
+
+Los datos de nivel 1 de procesamiento se escriben en archivos netCDF4, usando la
+capacidad de generar grupos de datos, característica de este formato. Se genera
+un archivo netCDF4 por cada día de datos. El nombre cada archivo consiste en la
+fecha en el formato \texttt{'yyyymmdd'} más la extensión \text{'.nc'}, por
+ejemplo:
+
+\begin{verbatim}
+  data/
+  `-- level1/
+      |-- 20171117.nc
+      |-- 20171118.nc
+      |-- 20171119.nc
+      |--     .
+      |--     .
+      |--     .
+      |-- 20180131.nc
+      `-- 20180201.nc
+\end{verbatim}
+
+
+Cada archivo agrupa los datos en grupos por cada sensor. Por ejemplo, los datos
+de la BOMM1-ITS se clasifican en los siguientes grupos.
+
+\begin{verbatim}
+  groups: ekinox, sonic, gps, marvi, maximet, proceanus,
+          rbr, signature, vector, wstaff
+\end{verbatim}
+
+Los grupos contienen las variables y las dimensiones. En este caso solo se tiene
+dos tipos de dimensiones, el tiempo y el número de celdas, este último es
+específico del perfilador de corrientes Signature 1000 kHz. El siguiente es un
+ejemplo de la estructura del grupo asociado con los datos del sensor de
+movimiento Ekinox2-M:
+
+\begin{verbatim}
+  group /ekinox:
+      sampling_frequency: 100
+      serial_number: 5242914
+      description: MRU Subsea Ekinox2-M
+      convention: X positive towards north buoy, Y eastward and Z downward
+      dimensions(sizes): time(8640000)
+      variables(dimensions): float64 time(time), float64 accel_x(time),
+                             float64 accel_y(time), float64 accel_z(time),
+                             float64 gyro_x(time), float64 gyro_y(time),
+                             float64 gyro_z(time), float64 delta_vel_x(time),
+                             float64 delta_vel_y(time), float64 delta_vel_z(time),
+                             float64 delta_ang_x(time), float64 delta_ang_y(time),
+                             float64 delta_ang_z(time), float64 temp(time)
+\end{verbatim}
+
+Cada una de las variables tiene atributos, para los cuales se sigue la
+convención CF-1.7 y las recomendaciones de los manuales de usuario de cada uno
+de los instrumentos. Por ejemplo, los atributos de la tasa de cambio del ángulo
+al rededor del eje $x$, se presentan a continuación:
+
+\begin{verbatim}
+  float64 gyro_x(time)
+      _FillValue: nan
+      standard_name: gyro_x
+      long_name: rate of change of the angle in X direction
+      units: rad/s
+  path = /ekinox
+  unlimited dimensions:
+  current shape = (8640000,)
+  filling on
+\end{verbatim}
+
+Los metadatos de las mediciones que se incorporan en el archivo netCDF se
+presentan en un archivo aparte con un formato YAML (\url{http://yaml.org/}) ya
+que es el formato más amigable para este tipo de información. Por ejemplo, los
+atributos globales que identifican la información de la boya son:
+
+\begin{verbatim}
+title: >
+  This dataset presents air-sea physical and chemical variables from a BOMM
+  (Oceanographic and Marine Meteorology buoy) near the Isla Todos Santos,
+  Ensenada, BC, México, from Nov 2017 to Jan 2018.
+
+history: >
+  The BOMM1-ITS was deployed on 2017/11/16 and recovered on 2018/02/02.
+
+source: Ocean surface observations
+convention: CF-1.7
+institution: CICESE - CIGOM
+creator_name: The waves group - CICESE
+creator_url: https://www.cicese.mx/
+email: oleaje@cicese.mx
+acknowledgments: >
+  This research has been funded by Fondo Sectorial CONACYT-SENER
+  Hidrocarburos, Project 201441.
+
+comments: |
+  Sampling frequency is shown in Hz, in all cases.
+\end{verbatim}
+
+Igualmente, en el formato YAML se presentan los metadatos asociados con los
+atributos de cada variable. Para esto se separan en grupos de acuerdo con cada
+sensor como se muestra a continuación:
+
+\begin{verbatim}
+  ekinox:
+    sampling_frequency: 100
+    seconds_per_file: 600
+    serial_number : 024000042
+    description: MRU Subsea Ekinox2-M
+    convention: X positive towards north buoy, Y eastward and Z downward
+    variables:
+      accel_x:
+        column: 6
+        long_name: acceleration in X direction
+        units: m/s^2
+      accel_y:
+        column: 7
+        long_name: acceleration in Y direction
+        units: m/s^2
+        .
+        .
+        .
+      delta_ang_z:
+        column: 18
+        long_name: coning output in Z direction
+        units: rad/s
+      temp:
+        column: 15
+        long_name: sensor temperature
+        units: degrees_celsius
+\end{verbatim}
+
+En este caso, los metadatos son los mismos que se escribieron en el archivo
+NetCDF, excepto por algunos como \texttt{column} que es el número de la columna
+en la que se presentan los datos en el archivo ASCII del nivel 0.
+
+\subsubsection*{Ejemplos de acceso a los datos}
+\label{ssub:ejemplos_de_acceso_a_los_datos}
+
+Los archivos netCDF4 son de fácil acceso en la mayoría de los lenguajes de
+programación, por ejemplo, en Python se usa la paquetería
+\texttt{netcdf4-python} (\url{http://unidata.github.io/netcdf4-python/}). A
+continuación se presenta un ejemplo simple de cómo leer los datos de nivel 1 en
+\texttt{python3.6.5}.
+
+\begin{verbatim}
+  import numpy as np
+  import netCDF4 as nc
+  #
+  filename = "../data/20171117.nc" 
+  data = nc.Dataset(filename) #<-- carga el dataset completo
+  ekx = data["ekinox"]        #<-- lee el grupo del ekinox
+  met = data["maximet"]       #<-- lee el grupo de la maximet
+  #
+  a, b = 0, 180000            #<-- indices para el tiempo 30 mins
+  ax = ekx["accel_x"][a:b]    #<-- extrae la aceleracion en x
+\end{verbatim}
+
+
+
+% }}}
+
+% datos de nivel 2 {{{
+\subsection{Nivel 2}
+\label{sub:nivel_2}
+TODO
+% }}}
+
+% datos de nivel 3 {{{
+\subsection{Nivel 3}
+\label{sub:nivel_3}
+TODO
+% }}}
+
+
+% }}}
+
+
+\end{document}
+%  finalizar documento --------------------------------------------------------

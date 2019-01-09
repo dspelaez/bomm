@@ -143,20 +143,35 @@ class ReadRawData(object):
         obs = {v: [] for v in columns.keys()}
 
         # read file
-        # TODO: some files have lines with null bytes. Check it!
         with open(filename, 'r') as f:
             data = csv.reader(f, delimiter=',')
-            for row in data:
+            for irow, row in enumerate(data):
+                #
+                # parse date and append it to a list
                 time.append(self._parsedate(" ".join(row[:4])))
+                #
+                # loop for each column
                 for k, v in columns.items():
+                    #
+                    # check is data is a 2d array
                     if isinstance(v, list):
                         a, b = v
                         obs[k].append([float(s) for s in row[a:b+1]])
+                    #
+                    # if not, it is a 1d array
                     else:
                         try:
+                            # try to convert each value into float
                             obs[k].append(float(row[v]))
+                        except IndexError:
+                            # if line is empty then fill with nans
+                            obs[k].append(np.nan)
                         except ValueError:
+                            # if convertion fails leave as string
                             obs[k].append(row[v])
+                        except:
+                            raise Exception((f"Problems reading "
+                                             f"line {irow+1} column {v}"))
 
         # convert to numpy array and add time array
         obs["time"] = time
@@ -211,14 +226,15 @@ class ReadRawData(object):
             raise Exception(f"Number of NaNs is {n_nans:d} out of {n:d}.")
 
         # drop missing values only if are less than 10 percent of the data
-        # TODO: not more than 100 consecutive missing values
+        # TODO: limit to a number of consecutive nans of one second
         df = df.dropna(how="any")
 
         # remove duplicate indices if they exist
         df = df[~df.index.duplicated(keep='first')]
         
         # sort data in ascending and reindex to the new time
-        # i still dont know what is the difference between ffill/bfill
+        # perform the reindex twice, one backward and one foreward
+        # limit to a number of consecutive nans of one second
         l = fs if fs>=1 else None
         df = df.sort_index().reindex(time_new, limit=1, method="bfill").ffill()
 
@@ -230,8 +246,16 @@ class ReadRawData(object):
 
     # correct NULL bytes
     def _remove_null_bytes(self, filename):
-        """Remove NULL bytes in file represented by '\0'."""
-        raise NotImplementedError
+        """Remove NULL bytes in file represented by '\x00'."""
+
+        with open(filename, "r") as f:
+            data = f.read()
+
+        if data.find("\x00") != -1:
+            with open(filename, "w") as f:
+                f.write(data.replace("\x00", ""))
+        else:
+            pass
     # }}}
 
     # read ekinox {{{

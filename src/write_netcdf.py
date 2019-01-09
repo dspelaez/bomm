@@ -8,6 +8,10 @@
 #  Distributed under terms of the GNU/GPL license.
 # =============================================================
 
+"""
+This module contains function to write a NetCDF4 file from the BOMM data.
+"""
+
 # --- import libs ---
 import numpy as np
 import datetime as dt
@@ -16,7 +20,7 @@ import time
 import yaml
 import sys
 #
-import bomm
+from .read_raw_data import ReadRawData
 
 
 # write variables {{{
@@ -27,7 +31,9 @@ def write_variables(metadata, sensor, grp):
     variables = metadata["sensors"][sensor]["variables"]
 
     # create time variable
-    grp.createVariable("time", "f8", "time")
+    nctime = grp.createVariable("time", "f8", "time", fill_value=False)
+    nctime.setncattr("units", global_time_units)
+    nctime.setncattr("calendar", "gregorian")
 
     # create each variable
     for k, v in variables.items():
@@ -36,12 +42,18 @@ def write_variables(metadata, sensor, grp):
         if isinstance(v["column"], list):
             ncell = v["column"][1] - v["column"][0] + 1
             try:
+                #
+                # create number of cell dimension
                 grp.createDimension("cell", ncell)
             except:
                 pass
-            var = grp.createVariable(k, "f8", ("time", "cell"))
+            #
+            # create two dimensional variable 
+            var = grp.createVariable(k, "f8", ("time", "cell"), fill_value=np.nan)
         else:
-            var = grp.createVariable(k, "f8", "time")
+            #
+            # create one dimensional variable 
+            var = grp.createVariable(k, "f8", "time", fill_value=np.nan)
         #
         # write variable attributes
         for attr, val in v.items():
@@ -64,10 +76,10 @@ def write_group(b, dataset, sensor, day, logfile):
     samples_per_day = int(fs * 60 * 60 * 24)
     samples_per_file = int(fs * N)
 
-    # create time dimension
+    # create time dimension and assing attributes
     grp.createDimension("time", samples_per_day)
-
-    # write global attributes
+    
+    # write global attributes for each sensor
     for attr, val in b.metadata["sensors"][sensor].items():
         if attr not in ["variables", "seconds_per_file"]:
             grp.setncattr(attr, val)
@@ -119,13 +131,16 @@ def write_group(b, dataset, sensor, day, logfile):
 # write netcdf {{{
 def write_netcdf(metafile):
 
-    """This module contains functions to write a NetCDF4 file.
+    """This function writes a NetCDF4 file from the BOMM data.
 
-    The module was writen to convert the BOMM row data to a distributable
+    The function was writen to convert the BOMM raw data to a distributable
     NetCDF4 format. The functions only require the metatadata in a YAML file.
     This will write a NetCDF4 file for each day as specified in the YAML file.
     Each NetCDF4 file contains one group per buoy sensor and each group contains
     the variables specified in the YAML file as well as the metadata.
+
+    Args:
+        metafile (str): Name of the metadata YAML file.
 
     Example:
         To run this module you just need the YAML filename as follows:
@@ -134,17 +149,16 @@ def write_netcdf(metafile):
             >>> metafile = "bomm.yml"
             >>> bomm.write_netcdf(metafile)
 
-    Author:
-        Daniel Santiago <dpelaez@cicese.edu.mx>
-
+        This will write a NetCDF4 file per day in the default location. Which is
+        the `basepath + ../level1` as specified in the YAML file.
     """
 
     # create instance of the bomm.ReadRowData class
-    b = bomm.ReadRawData(metafile)
+    b = ReadRawData(metafile)
 
     # starting and final days
-    day = dt.datetime.strptime(b.metadata["date-start"], "%Y-%m-%d")
-    end = dt.datetime.strptime(b.metadata["date-final"], "%Y-%m-%d")
+    day = dt.datetime.strptime(b.metadata["t_ini"], "%Y-%m-%d")
+    end = dt.datetime.strptime(b.metadata["t_fin"], "%Y-%m-%d")
 
     # restart logfile if exist
     logfile = b.metadata["name"] + ".log"
@@ -153,21 +167,21 @@ def write_netcdf(metafile):
 
     # global time units
     global global_time_units
-    global_time_units = f"seconds since {day}"
+    global_time_units = f"seconds since 1970-01-01 00:00:00"
     
     # loop for each day
     while day <= end:
         
         # netcdf filename
-        fname = f"{b.basepath}/netcdf/bomm.level0.{day.strftime('%Y%m%d')}.nc"
+        fname = f"{b.basepath}/../level1/{day.strftime('%Y%m%d')}.nc"
 
         # name of the group associated with each day
         with nc.Dataset(fname, "w") as dataset:
 
             # write global attrs
-            dataset.setncattr("name",       b.metadata["name"])
-            dataset.setncattr("date-start", b.metadata["date-start"])
-            dataset.setncattr("date-final", b.metadata["date-final"])
+            for gbl_name, gbl_values in b.metadata.items():
+                if gbl_name not in ["name", "basepath", "sensors", "t_ini", "t_fin"]:
+                    dataset.setncattr(gbl_name, gbl_values)
 
             # write data for each sensor
             print("=" * 57, end="\n")
