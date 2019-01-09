@@ -26,7 +26,7 @@ setup(name = 'bomm',
       install_requires = [
           "numpy==1.14.3",
           "pandas==0.23.0",
-          "PyYAML==3.13",
+          "pyyaml>=4.2b1",
           "tqdm==4.25.0"
           ],
       zip_safe = False)
