@@ -2,18 +2,18 @@
 # vim:foldnestmax=2
 
 ---
-name: bomm2_its
-basepath: "/Volumes/BOMM/BOMM2-ITS/data/level0"
-t_ini: '2018-03-03'
-t_fin: '2018-06-19'
+name: bomm1_its
+basepath: "/Volumes/BOMM/cigom/data/bomm1_its/level0/"
+t_ini: '2017-11-17'
+t_fin: '2018-02-01'
 
 title: >
   This dataset presents air-sea physical and chemical variables from a BOMM
   (Oceanographic and Marine Meteorology buoy) near the Isla Todos Santos,
-  Ensenada, BC, México, from Feb to Jun 2018.
+  Ensenada, BC, México, from Nov 2017 to Jan 2018.
 
 history: >
-  The BOMM2-ITS was deployed on 2018/02/28 and recovered on 2018/06/20.
+  The BOMM1-ITS was deployed on 2017/11/16 and recovered on 2018/02/02.
 
 source: Ocean surface observations
 convention: CF-1.7
@@ -30,13 +30,12 @@ comments: |
 
 references: ''
 
-
 sensors:
   
   ekinox:
     sampling_frequency: 100
     seconds_per_file: 600
-    serial_number : ''
+    serial_number : 024000042
     description: MRU Subsea Ekinox2-M
     convention: X positive towards north buoy, Y eastward and Z downward
     variables:
@@ -96,7 +95,7 @@ sensors:
   sonic:
     sampling_frequency: 100
     seconds_per_file: 600
-    serial_number : 163701
+    serial_number : 163807
     description: Gill Instruments R3-100 3D sonic anemometer
     convention: >
       Positive U is deflected 30 degrees CCW from the north mark and V is 120
@@ -123,7 +122,7 @@ sensors:
   gps:
     sampling_frequency: 10
     seconds_per_file: 600
-    serial_number : 2J5050491
+    serial_number : 2J5050489
     description: GPS Garmin 19x HSV
     variables:
       status:
@@ -213,12 +212,12 @@ sensors:
   maximet:
     sampling_frequency: 1
     seconds_per_file: 3600
-    serial_number : 17290012
+    serial_number : 16430037
     description: Gill GMX-600 compact weather station
     convention: >
       Wind direction uses meteorological convention, i.e. the angle points the
       direction from the wind comes and it is measured CW from north. The
-      Maximet north mark is oriented 180 degrees respect to the BOMM north.
+      Maximet north mark is oriented 60 degrees respect to the BOMM north.
     variables:
       relative_wind_dir:
         column: 4
@@ -264,7 +263,7 @@ sensors:
   proceanus:
     sampling_frequency: 1/1800
     seconds_per_file: 86400
-    serial_number : 36-299-50A
+    serial_number : 35-270-50A
     description: CO2 Pro-Atmosphere
     variables:
       air_co2:
@@ -327,7 +326,7 @@ sensors:
   rbr:
     sampling_frequency: 1/600
     seconds_per_file: 86400
-    serial_number : ''
+    serial_number : 62544
     description: CTD+02+pH sensor RBR Concerto
     variables:
       conductivity:
@@ -362,14 +361,22 @@ sensors:
         column: 11
         long_name: sea water salinity
         units: ppm
+      sound_speed:
+        column: 12
+        long_name: sound speed in the water
+        units: m/s
+      specific_cond:
+        column: 13
+        long_name: specific conductance
+        units: uS/cm
 
   signature:
     sampling_frequency: 8
     seconds_per_file: 600
-    serial_number : 100419
+    serial_number : 100423
     description: AD2CP Nortek Signature 1000 kHz
     convention: The vertical axis of the sensor is tilted 25 degrees towards the X axis
-    beams: [1,2,4,5]
+    beams: [1,2,3,5]
     ncell: 10
     variables:
       sound_speed:
@@ -476,9 +483,9 @@ sensors:
         column: [92,101]
         long_name: velocity along beam 2
         units : mm/s
-      vel_b4:
+      vel_b3:
         column: [102,111]
-        long_name: velocity along beam 4
+        long_name: velocity along beam 3
         units : mm/s
       vel_b5:
         column: [28,37]
@@ -492,9 +499,9 @@ sensors:
         column: [122,131]
         long_name: backscatter amplitude along beam 2
         units : counts
-      amp_b4:
+      amp_b3:
         column: [132,141]
-        long_name: backscatter amplitude along beam 4
+        long_name: backscatter amplitude along beam 3
         units : counts
       amp_b5:
         column: [38,47]
@@ -508,9 +515,9 @@ sensors:
         column: [152,161]
         long_name: correlation along beam 2
         units : percentage
-      cor_b4:
+      cor_b3:
         column: [162,171]
-        long_name: correlation along beam 4
+        long_name: correlation along beam 3
         units : percentage
       cor_b5:
         column: [48,57]
@@ -520,7 +527,7 @@ sensors:
   vector:
     sampling_frequency: 64
     seconds_per_file: 600
-    serial_number : ''
+    serial_number : VEH5262
     description: Acoustic Doppler Velocimeter (ADV) Nortek Vector 1MHz
     variables:
       delta_ang_x:
@@ -601,11 +608,11 @@ sensors:
         units: mm/s
 
   wstaff:
-    sampling_frequency: 10
+    sampling_frequency: 20
     seconds_per_file: 600
-    serial_number: OSSI-010-002F3.5
-    wires_used: [7, 8, 9, 10, 11, 12]
-    electronics_used: [7, 8, 9, 10, 11, 12]
+    serial_number : OSSI-010-002F3.5
+    wires_used: [1, 2, 3, 4, 5, 6]
+    electronics_used: [1, 2, 3, 4, 5, 6]
     x_coordinates: [0.00, -0.87, -0.25,  0.71,  0.69, -0.28]
     y_coordinates: [0.00, -0.02, -0.83, -0.50,  0.52,  0.82]
     description: Pentagon-shape array of six Wave Staff capacitance wires

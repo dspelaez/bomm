@@ -19,8 +19,9 @@ import netCDF4 as nc
 import time
 import yaml
 import sys
+import os
 #
-from .read_raw_data import ReadRawData
+from read_raw_data import ReadRawData
 
 
 # write variables {{{
@@ -141,16 +142,6 @@ def write_netcdf(metafile):
 
     Args:
         metafile (str): Name of the metadata YAML file.
-
-    Example:
-        To run this module you just need the YAML filename as follows:
-            
-            >>> import bomm
-            >>> metafile = "bomm.yml"
-            >>> bomm.write_netcdf(metafile)
-
-        This will write a NetCDF4 file per day in the default location. Which is
-        the `basepath + ../level1` as specified in the YAML file.
     """
 
     # create instance of the bomm.ReadRowData class
@@ -161,7 +152,7 @@ def write_netcdf(metafile):
     end = dt.datetime.strptime(b.metadata["t_fin"], "%Y-%m-%d")
 
     # restart logfile if exist
-    logfile = b.metadata["name"] + ".log"
+    logfile = os.path.splitext(metafile)[0] + ".log"
     with open(logfile, "w"):
         pass
 
@@ -205,7 +196,18 @@ def write_netcdf(metafile):
 
 
 if __name__ == "__main__":
-    pass
+    
+    # execute the code if the valid arg is passed
+    if len(sys.argv) == 2:
+        try:
+            metafile = sys.argv[1]
+            write_netcdf(metafile)
+        except:
+            raise Exception("An error was occurred")
+    else:
+        raise ValueError("Invalid number of arguments")
+
+
 
 
 # === end of file ===
