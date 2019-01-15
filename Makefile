@@ -80,6 +80,9 @@ test_environment:
 # PROJECT RULES                                                                 #
 #################################################################################
 
+## Create level1 dataset
+level1:
+	python src/write_level1.py "./metadata/level1/bomm1_its.yml"
 
 
 #################################################################################

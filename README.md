@@ -10,13 +10,6 @@ Project Organization
 ├── LICENSE
 ├── Makefile
 ├── README.md
-├── bomm.egg-info
-│   ├── PKG-INFO
-│   ├── SOURCES.txt
-│   ├── dependency_links.txt
-│   ├── not-zip-safe
-│   ├── requires.txt
-│   └── top_level.txt
 ├── data
 │   ├── bomm1_its
 │   └── bomm2_its

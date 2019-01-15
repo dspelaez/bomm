@@ -9,6 +9,8 @@
 # =============================================================
 
 """
+This module contains functions to apply the correction of the
+data due to the BOMM inertial motion.
 """
 
 
@@ -544,6 +546,12 @@ def velocity_correction(U, A, E, L=(0,0,0), fs=100, fc=1/25, full=False):
         return uE, vE, wE
 
 # --- }}}
+
+
+# --- run as a script ---
+if __name__ == "__main__":
+    pass
+
 
 # --- end of file ---
 
