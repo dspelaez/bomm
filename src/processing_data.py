@@ -25,6 +25,7 @@ import wdm
 import motion_correction as motcor
 
 
+
 # global variables
 # global varibles {{{
 number_of_minutes = 30
@@ -32,7 +33,7 @@ basepath = "/Volumes/BOMM/cigom/data/bomm1_its/level1"
 # }}}
 
 
-# functions to compute data
+# functions to compute importan variables
 # wavenumber {{{
 def wavenumber(f, d=100, mode="hunt"):
     """
@@ -477,6 +478,18 @@ def get_netcdf_data(grp, date, number_of_minutes=30, only=None):
     return dic
     # }}}
 
+# convert to coordinate {{{
+def convert_to_coordinate(x):
+    """Convert ungly number to latitude of longitude coordinates."""
+     
+    def function(x):
+        a, b = str(x).split(".")
+        deg, mn = int(a[:-2]), int(a[-2:]) + float("0." + b)
+        return deg +  mn/60
+    
+    return np.array(list(map(function, x)))
+# }}}
+
 
 # main class {{{
 class ProcessingData(object):
@@ -487,37 +500,40 @@ class ProcessingData(object):
     """
 
     _list_of_dictionaries = "ekx wnd gps mvi met pro rbr sig vec wav".split()
-    # __slots__ = ["date"] + _list_of_dictionaries
+    __slots__ = "list_of_variables r Acc Gyr Eul".split() + _list_of_dictionaries
 
     # private methods {{{
     def __init__(self, date):
         """Function to initialize the class.
-        
+
         Args:
             date (datetime): datetime object
         """
 
         # date and filename
-        self.date = date 
-        filename = f"{basepath}/{self.date.strftime('%Y%m%d')}.nc"
+        nm = number_of_minutes
+        filename = f"{basepath}/{date.strftime('%Y%m%d')}.nc"
 
         # load data as dictionaries
         self.r = {}
+        self.list_of_variables = {}
         with nc.Dataset(filename, "r") as data:
-            self.ekx = get_netcdf_data(data["ekinox"],    self.date, 30)
-            self.wnd = get_netcdf_data(data["sonic"],     self.date, 30)
-            self.gps = get_netcdf_data(data["gps"],       self.date, 30)
-            self.mvi = get_netcdf_data(data["marvi"],     self.date, 30)
-            self.met = get_netcdf_data(data["maximet"],   self.date, 30)
-            self.pro = get_netcdf_data(data["proceanus"], self.date, 30)
-            self.rbr = get_netcdf_data(data["rbr"],       self.date, 30)
-            self.sig = get_netcdf_data(data["signature"], self.date, 30)
-            self.vec = get_netcdf_data(data["vector"],    self.date, 30)
-            self.wav = get_netcdf_data(data["wstaff"],    self.date, 30)
+            self.ekx = get_netcdf_data(data["ekinox"],    date, nm)
+            self.wnd = get_netcdf_data(data["sonic"],     date, nm)
+            self.gps = get_netcdf_data(data["gps"],       date, nm)
+            self.mvi = get_netcdf_data(data["marvi"],     date, nm)
+            self.met = get_netcdf_data(data["maximet"],   date, nm)
+            self.pro = get_netcdf_data(data["proceanus"], date, nm)
+            self.rbr = get_netcdf_data(data["rbr"],       date, nm)
+            self.sig = get_netcdf_data(data["signature"], date, nm)
+            self.vec = get_netcdf_data(data["vector"],    date, nm)
+            self.wav = get_netcdf_data(data["wstaff"],    date, nm)
+
+        # save date in the results dictionary
+        self.r["time"] = date
 
         # compute the motion matrices needed to the correction
         self.motion_matrices()
-
     # }}}
 
     # motion matrices {{{
@@ -555,6 +571,73 @@ class ProcessingData(object):
                 np.radians(heading), fs=100, fc=0.04)
         self.Eul = (phi, theta, (-psi)%(2*np.pi))
 
+        # finally save the mean euler angles in the results dictionary
+        self.r["roll"] = simple_despike(self.Eul[0]*180/np.pi, isangle=True)
+        self.r["pitch"] = simple_despike(self.Eul[1]*180/np.pi, isangle=True)
+        self.r["yaw"] = simple_despike(self.Eul[2]*180/np.pi, isangle=True)
+        #
+        list_of_variables = {
+                "roll"  : "average_roll_angle",
+                "pitch" : "average_pitch_angle",
+                "yaw"   : "average_yaw_angle"
+                }
+        self.list_of_variables = {**self.list_of_variables, **list_of_variables}
+
+    # }}}
+
+
+    # air data {{{
+    def air_data(self):
+        """Compute averages of the air-quality data. Includes location from GPS."""
+
+        # TODO: It is strongly recommended to limit the range of the
+        #       data in the netcdf valid_range attribute.
+        # compute variables from Maximet
+        twDir = simple_despike(self.met["true_wind_dir"], isangle=True)
+        rwDir = simple_despike(self.met["relative_wind_dir"], isangle=True)
+        Wspd = simple_despike(self.met["wind_speed"])
+        Pa = simple_despike(self.met["atm_pressure"])
+        Ta = simple_despike(self.met["air_temp"])
+        rhum = simple_despike(self.met["rel_humidity"])
+        DP = simple_despike(self.met["dew_point"])
+        pr = simple_despike(self.met["total_rain"])
+        ipr = simple_despike(self.met["rain_intensity"])
+        
+        # compute variables from Proceanus
+        aCO2 = simple_despike(self.pro["air_co2"])
+        wCO2 = simple_despike(self.pro["wat_co2"])
+        ahum = simple_despike(self.pro["air_humidity"])
+        rhoa = air_dens(Ta, rhum, Pa)
+
+        # compute data from gps
+        lat = simple_despike(self.gps["latitude"]) 
+        lon = simple_despike(self.gps["longitude"]) 
+        
+        # save data in the output dictionary
+        list_of_variables = {
+                "twDir" : "true_wind_direction",
+                "rwDir" : "relative_wind_direction",
+                "Wspd"  : "wind_speed",
+                "Pa"    : "air_pressure",
+                "Ta"    : "air_temperature",
+                "rhum"  : "relative_humidity",
+                "DP"    : "dew_point",
+                "pr"    : "total_rain",
+                "ipr"   : "rain_intensity",
+                "aCO2"  : "air_co2",
+                "wCO2"  : "water_co2",
+                "ahum"  : "air_humidity",
+                "rhoa"  : "air_density",
+                "lat"   : "latitude",
+                "lon"   : "longitude"
+                }
+        #
+        for k, v in list_of_variables.items():
+            self.r[k] = eval(k)
+        #
+        # append to global list of variables
+        self.list_of_variables = {**self.list_of_variables, **list_of_variables}
+        
     # }}}
 
     # water data {{{
@@ -565,54 +648,29 @@ class ProcessingData(object):
         #       data in the netcdf valid_range attribute.
         # compute variables from RBR
         pH = simple_despike(self.rbr["ph"])
-        dissolved_oxygen = simple_despike(self.rbr["dissoxy"])
-        water_salinity = simple_despike(self.rbr["salinity"])
-        water_temperature = simple_despike(self.rbr["temperature"])
-        water_conductivity = simple_despike(self.rbr["conductivity"])
-        water_depth = simple_despike(self.rbr["depth"])
-        water_density = gsw.rho(water_salinity, water_temperature, water_depth)
+        Sw = simple_despike(self.rbr["salinity"])
+        Tw = simple_despike(self.rbr["temperature"])
+        Cw = simple_despike(self.rbr["conductivity"])
+        depth = simple_despike(self.rbr["depth"])
+        rhow = gsw.rho(Sw, Tw, depth)
+        dissoxy = simple_despike(self.rbr["dissoxy"])
 
-        # save data
-        list_of_variables = [v for v in locals().keys() if v not in "self"]
-        for v in list_of_variables:
-            self.r[v] = eval(v)
-    # }}}
-
-    # air data {{{
-    def air_data(self):
-        """Compute averages of the air-quality data. Includes location from GPS."""
-
-        # TODO: It is strongly recommended to limit the range of the
-        #       data in the netcdf valid_range attribute.
-        # compute variables from Maximet
-        true_wind_direction = simple_despike(self.met["true_wind_dir"], isangle=True)
-        relative_wind_direction = simple_despike(self.met["relative_wind_dir"], isangle=True)
-        wind_speed = simple_despike(self.met["wind_speed"])
-        air_pressure = simple_despike(self.met["atm_pressure"])
-        air_temperature = simple_despike(self.met["air_temp"])
-        relative_humidity = simple_despike(self.met["rel_humidity"])
-        dew_point = simple_despike(self.met["dew_point"])
-        total_rain = simple_despike(self.met["total_rain"])
-        rain_intensity = simple_despike(self.met["rain_intensity"])
-        
-        # compute variables from Proceanus
-        air_co2 = simple_despike(self.pro["air_co2"])
-        water_co2 = simple_despike(self.pro["wat_co2"])
-        air_humidity = simple_despike(self.pro["air_humidity"])
-        air_density = air_dens(air_temperature, relative_humidity, air_pressure)
-        
-        # save data
-        list_of_variables = [v for v in locals().keys() if v not in "self"]
-        for v in list_of_variables:
-            self.r[v] = eval(v)
-
-        
-    # }}}
-
-    # current data {{{
-    def current_data(self, arg1):
-        """TODO"""
-        pass
+        # save data in the output dictionary
+        list_of_variables = {
+                "pH"      : "pH",
+                "Sw"      : "water_salinity",
+                "Tw"      : "water_temperature",
+                "Cw"      : "water_conductivity",
+                "rhow"    : "water_density",
+                "depth"   : "water_depth",
+                "dissoxy" : "dissolved_oxygen",
+                }
+        #
+        for k, v in list_of_variables.items():
+            self.r[k] = eval(k)
+        #
+        # append to global list of variables
+        self.list_of_variables = {**self.list_of_variables, **list_of_variables}
     # }}}
 
     # wave data {{{
@@ -645,29 +703,33 @@ class ProcessingData(object):
 
         # compute directional wave spectrum
         # TODO: create a anti-aliasing filter to decimate the time series
-        wfrq, dirs, E, D = wdm.fdir_spectrum(Z[::5,:], X[::5,:], Y[::5,:], fs=4,
+        d = lambda x: x[::5,:]
+        wfrq, dirs, E, D = wdm.fdir_spectrum(d(Z), d(X), d(Y), fs=4,
                 limit=np.pi, omin=-5, omax=1, nvoice=16, ws=(30, 1))
         
         # compute bulk wave parameters and stokes drift magnitude
         Hm0, Tp, pDir, mDir = wave_parameters(wfrq, dirs, E)
-        Us = stokes_drift(ffrq, S.mean(1), z=0.0)
+        Us0 = stokes_drift(ffrq, S.mean(1), z=0.0)
 
         # save data in the output dictionary
         list_of_variables = {
                 "ffrq" : "fourier_frequencies",
                 "S"    : "frequency_spectrum",
                 "wfrq" : "wavelet_frequencies",
-                "dirs" : "directions",
-                "E"    : "directional_spectrum",
+                "dirs" : "wavelet_directions",
+                "E"    : "directional_wave_spectrum",
                 "Hm0"  : "significant_wave_height",
-                "Tp"   : "peak_period",
-                "pDir" : "peak_direction",
-                "mDir" : "average_direction",
-                "Us"   : "stokes_drift"
+                "Tp"   : "peak_wave_period",
+                "pDir" : "peak_wave_direction",
+                "mDir" : "average_wave_direction",
+                "Us0"   : "surface_stokes_drift"
                 }
-        # list_of_variables = "Ua Va Ta uw vw wT U10N"
+        #
         for k, v in list_of_variables.items():
             self.r[k] = eval(k)
+        #
+        # append to global list of variables
+        self.list_of_variables = {**self.list_of_variables, **list_of_variables}
     # }}}
 
     # wind data {{{
@@ -686,8 +748,8 @@ class ProcessingData(object):
         
         # air-sea density ratio
         default_value = lambda x,y: x if ~np.isnan(x) else y
-        rhoa = default_value(self.r["air_density"], 1.20)
-        rhow = default_value(self.r["water_density"], 1024)
+        rhoa = default_value(self.r["rhoa"], 1.20)
+        rhow = default_value(self.r["rhow"], 1024)
         dens_rel = rhoa / rhow
         #
         # air-side and water-side friction velocities
@@ -705,17 +767,89 @@ class ProcessingData(object):
 
         # save data in the output dictionary
         list_of_variables = {
-                "Ua":   "zonal_wind_component",
-                "Va":   "meridional_wind_component",
-                "Ta":   "sonic_air_temperature",
-                "uw":   "zonal_momentum_flux",
-                "vw":   "meridional_momentum_flux",
-                "wT":   "sensible_heat_flux",
-                "U10N": "10m_wind_speed"
+                "Ua"    : "zonal_wind_component",
+                "Va"    : "meridional_wind_component",
+                "Ta"    : "sonic_air_temperature",
+                "uw"    : "zonal_momentum_flux",
+                "vw"    : "meridional_momentum_flux",
+                "wT"    : "sensible_heat_flux",
+                "ustar" : "airside_friction_velocity",
+                "wstar" : "waterside_friction_velocity",
+                "U10N"  : "10m_wind_speed"
                 }
+        #
         # list_of_variables = "Ua Va Ta uw vw wT U10N"
         for k, v in list_of_variables.items():
             self.r[k] = eval(k)
+        #
+        # append to global list of variables
+        self.list_of_variables = {**self.list_of_variables, **list_of_variables}
+    # }}}
+    
+    # current data {{{
+    def current_data(self):
+        """Get data from the signature current profiler and the vector velocim."""
+
+        # compute data from vector.
+        # convert from mm/s to m/s
+        v1 = simple_despike(self.vec["vel_b1"]) / 1000.
+        v2 = simple_despike(self.vec["vel_b2"]) / 1000.
+        v3 = simple_despike(self.vec["vel_b3"]) / 1000.
+
+        # copute the data from the signature
+        ncell = 10
+        cell_size = nanmean(self.sig["cell_size"]/1000)  # <- mm to meters
+        z_lower = -nanmean(self.sig["pressure"])/1000    # <- mbar to quasi-meters
+        z_upper = z_lower + ncell*cell_size
+        z_profile = np.linspace(z_lower, z_upper, ncell)
+        #
+        sig_beams = [b for b in self.sig.keys() if b.startswith("vel_b")]
+        vel_b1 = np.nanmean(self.sig["vel_b1"] / 1000., axis=0)
+        vel_b2 = np.nanmean(self.sig["vel_b2"] / 1000., axis=0)
+        vel_b3 = np.nanmean(self.sig["vel_b3"] / 1000., axis=0)
+        vel_b5 = np.nanmean(self.sig["vel_b5"] / 1000., axis=0)
+        
+        # save data in the output dictionary
+        list_of_variables = {
+                "v1" : "vector_beam1_velocity",
+                "v2" : "vector_beam2_velocity",
+                "v3" : "vector_beam3_velocity",
+                "z_profile": "depth_profile",
+                "vel_b1": "signature_beam1_velocity",
+                "vel_b2": "signature_beam2_velocity",
+                "vel_b3": "signature_beam3_velocity",
+                "vel_b5": "signature_beam5_velocity",
+                }
+        #
+        for k, v in list_of_variables.items():
+            self.r[k] = eval(k)
+        #
+        # append to global list of variables
+        self.list_of_variables = {**self.list_of_variables, **list_of_variables}
+    # }}}
+
+    # electronics data {{{
+    def electronics_data(self):
+        """Get data from the internal cilinder and the ekinox motion sensor."""
+
+        # compute data from marvi
+        # convert from mm/s to m/s
+        Ti = simple_despike(self.mvi["temperature"])
+        Pi = simple_despike(self.mvi["pressure"])
+        Hi = simple_despike(self.mvi["humidity"])
+        
+        # save data in the output dictionary
+        list_of_variables = {
+                "Ti" : "internal_temperature",
+                "Pi" : "internal_pressure",
+                "Hi" : "internal_humidity"
+                }
+        #
+        for k, v in list_of_variables.items():
+            self.r[k] = eval(k)
+        #
+        # append to global list of variables
+        self.list_of_variables = {**self.list_of_variables, **list_of_variables}
     # }}}
 
 # }}}
@@ -726,11 +860,14 @@ class ProcessingData(object):
 if __name__ == "__main__":
 
     date = dt.datetime(2017, 11, 17, 0, 0, 0)
+    date = dt.datetime(2017, 11, 17, 1, 0, 0)
     self = ProcessingData(date)
     self.air_data()
     self.water_data()
     self.wave_data()
     self.wind_data()
+    self.current_data()
+    self.electronics_data()
 
 
 # === end of file ===
