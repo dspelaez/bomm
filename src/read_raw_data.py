@@ -89,7 +89,8 @@ class ReadRawData(object):
         else:                                          # <--- one-minute files
             fmt = f"/{sensor}/%Y/%m/%d/%H/{sensor}-%y%m%d%H%M.csv"
         
-        filename = self.basepath + dt.datetime.strftime(date, fmt)
+        filename = self.basepath + self.bomm_name + \
+                   "/level0" + dt.datetime.strftime(date, fmt)
         return filename
 
 
@@ -130,6 +131,17 @@ class ReadRawData(object):
         sensors = self.metadata["sensors"][sensor]
         return {k:v["column"] for k,v in sensors["variables"].items()}
 
+    # convert to float if you can
+    def _float(self, x):
+        """Convert string to float even if it has double decimal point."""
+
+        try:
+            return float(x)
+        except ValueError:
+            if len(x.split(".")) >= 2:
+                return np.nan
+            else:
+                return x
 
     # read file
     def _readfile(self, sensor, date, columns):
@@ -142,6 +154,8 @@ class ReadRawData(object):
         time = []
         obs = {v: [] for v in columns.keys()}
 
+        # TODO: check if file has null bytes
+
         # read file
         with open(filename, 'r') as f:
             data = csv.reader(f, delimiter=',')
@@ -153,22 +167,25 @@ class ReadRawData(object):
                 # loop for each column
                 for k, v in columns.items():
                     #
-                    # check is data is a 2d array
+                    # check if data is a 2d array
                     if isinstance(v, list):
                         a, b = v
-                        obs[k].append([float(s) for s in row[a:b+1]])
+                        obs[k].append([self._float(s) for s in row[a:b+1]])
                     #
-                    # if not, it is a 1d array
+                    # if not, then it is a 1d array
                     else:
                         try:
+                            #
                             # try to convert each value into float
-                            obs[k].append(float(row[v]))
+                            obs[k].append(self._float(row[v]))
                         except IndexError:
+                            #
                             # if line is empty then fill with nans
                             obs[k].append(np.nan)
-                        except ValueError:
-                            # if convertion fails leave as string
-                            obs[k].append(row[v])
+                        # except ValueError:
+                            # #
+                            # # if conversion fails then leave as string
+                            # obs[k].append(row[v])
                         except:
                             raise Exception((f"Problems reading "
                                              f"line {irow+1} column {v}"))
@@ -208,8 +225,12 @@ class ReadRawData(object):
 
 
     # interpolate the data
+    # TODO: I need to improve this code function
     def _resample(self, dic, date, fs, N=600):
         """This function uses pandas for an accurate resample"""
+
+        # check minimum sampling frequency
+        # fs = np.max((fs, 1./600.)) # force to be one data each ten minutes 
 
         # create new time array
         time_new = self._getnewtime(date, fs, N)
@@ -218,6 +239,11 @@ class ReadRawData(object):
         t = dic["time"]
         df = pd.DataFrame({k:v for k,v in dic.items() 
                                if k not in ["time"]}, index=t)
+
+        # check time discontinuities
+        max_gap = np.diff(dic["time"]).max().total_seconds()
+        if max_gap > 5 / fs:
+            pass
 
         # check the number of nans
         n = len(t)
@@ -235,8 +261,9 @@ class ReadRawData(object):
         # sort data in ascending and reindex to the new time
         # perform the reindex twice, one backward and one foreward
         # limit to a number of consecutive nans of one second
-        l = fs if fs>=1 else None
-        df = df.sort_index().reindex(time_new, limit=1, method="bfill").ffill()
+        # l = int(fs) if fs>=1 else 1
+        l = 1
+        df = df.sort_index().reindex(time_new, limit=l, method="bfill").ffill()
 
         # crate new dictionary for output
         outdic = {c:df[c].values for c in df}
@@ -244,18 +271,17 @@ class ReadRawData(object):
         return outdic
 
 
-    # correct NULL bytes
-    def _remove_null_bytes(self, filename):
+    # remove NULL bytes
+    def _remove_nullbytes(self, filename):
         """Remove NULL bytes in file represented by '\x00'."""
 
         with open(filename, "r") as f:
             data = f.read()
 
-        if data.find("\x00") != -1:
-            with open(filename, "w") as f:
+            if data.find("\x00") != -1:
                 f.write(data.replace("\x00", ""))
-        else:
-            pass
+            
+            return f
     # }}}
 
     # read ekinox {{{

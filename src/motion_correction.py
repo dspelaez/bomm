@@ -27,7 +27,10 @@ def butterworth_filter(data, fs=100, fc=None, order=5, kind="low"):
     if fc is not None:
         b, a = signal.butter(order, fc/(0.5*fs), btype=kind, analog=False)
         data_filtered = signal.filtfilt(b, a, data)
-        return data_filtered
+        if hasattr(data, "mask"):
+            return np.ma.masked_array(data_filtered, mask=data.mask)
+        else:
+            return data_filtered
     else:
         return data
 # }}}
@@ -37,8 +40,12 @@ def detrend(y, degree=1):
     """Nice detrend function to handle with NaNs."""
     
     # remove nans
-    ixnan = np.isnan(y)
-    y[ixnan] = np.nanmean(y)
+    if hasattr(y, "mask"):
+        if len(np.nonzero(y.mask)[0]) == len(y):
+            raise Exception("Array is full of nans")
+    else:
+        ixnan = np.isnan(y)
+        y[ixnan] = np.nanmean(y)
 
     # fit a polinomial
     x = np.linspace(0, len(y), len(y))
@@ -50,11 +57,11 @@ def detrend(y, degree=1):
 
 # resample data to the same sampling frequency {{{
 def resample(x, y):
-    """Interpolates `y` data into de `x` and returns `y_new`
+    """Interpolates `y` data into `x` size and returns `y_new`
     
-    This function uses pandas for an accurate resample. The `x` data is the slow
-    fast signal and the `y` data is the slow signal. This function nterpolates
-    `y` data into de `x` data.
+    This function uses pandas for an accurate resample. The `x` data is the
+    fast signal and the `y` data is the slow signal. This function interpolates
+    `y` data into the `x` data.
  
     """
 
@@ -81,7 +88,10 @@ def resample(x, y):
     s = s.sort_index().reindex(x_time, limit=1, method="bfill").ffill()
 
     # crate new dictionary for output
-    return s.values
+    if hasattr(x, "mask"):
+        return np.ma.masked_array(s.values, mask=x.mask)
+    else:
+        return s.values
 # }}}
 
 # complementery filter in using a digital filter {{{
@@ -91,7 +101,7 @@ def complementary_filter(signal_a, signal_b, fs, fc, order=2):
     s = butterworth_filter(np.exp(1j*signal_a), fs, fc, order, kind="low") + \
         butterworth_filter(np.exp(1j*signal_b), fs, fc, order, kind="high")
 
-    return np.arctan2(s.imag, s.real)
+    return np.angle(s)
 
 # }}}
 
@@ -119,7 +129,7 @@ def fft_integration(signal, fs, fc=None, order=-1):
     # check for nans if more than 10 percents
     nans = np.isnan(signal)
     if len(nans.nonzero()[0]) / len(signal) < 0.1:
-        signal[nans] = 0
+        signal[nans] = np.nanmean(signal[~nans])
     else:
         return signal * np.nan
     
@@ -330,7 +340,7 @@ def yaw_from_magnetometer(wz, heading, fs=100, fc=1/25):
         1j* resample(wz, np.sin(heading))
 
     # compute psi angle from the magnetometre
-    psi_mag = np.mod(np.angle(heading_fast), 2*np.pi)
+    psi_mag = np.mod(np.ma.angle(heading_fast), 2*np.pi)
     mean_psi = np.nanmean(psi_mag)
 
     # compute pitch and roll from gyrospcope
@@ -400,24 +410,24 @@ def position_correction(X, A, E, fs=20, fc=1/25, q=5, full=False):
         * Drennan Donelan Madsen Katsaros Terray Flagg 1994, JAOT 11, 1109-1116
     """
     
+    # substract gravity acceleration effect
+    G = vector_rotation((0,0,-9.8), E)
+
     # apply double integration in the frequency domain
-    pos_x = fft_integration(A[0], fs*q, fc, order=-2)
-    pos_y = fft_integration(A[1], fs*q, fc, order=-2)
-    pos_z = fft_integration(A[2], fs*q, fc, order=-2)
-    P = (pos_x, pos_y, pos_z)
+    P = tuple(fft_integration(a, fs*q, fc, order=-2) for a,g in zip(A,G))
     
     # compute the derivative of the euler angles
-    # apply a lowpass filter? not yet!
-    D = tuple(np.gradient(e, 1/fs) for e in E)
+    D = tuple(np.gradient(e, 1/(fs*q)) for e in E)
 
     # decimate the high frequency signals to the given frecuency
     # note than in this function i use the following equivalences
     #   roll  --> r --> phi   --> E[0]
     #   pitch --> p --> theta --> E[1]
     #   yaw   --> y --> psi   --> E[2]
-    E_down = tuple(signal.decimate(e, q) for e in E) # <- Euler
-    P_down = tuple(signal.decimate(p, q) for p in P) # <- Position
-    D_down = tuple(signal.decimate(d, q) for d in D) # <- Derivative
+    decimate = lambda x, q: x[::q]
+    E_down = tuple(decimate(e, q) for e in E) # <- Euler
+    P_down = tuple(decimate(p, q) for p in P) # <- Position
+    D_down = tuple(decimate(d, q) for d in D) # <- Derivative
 
     # compute sines and cosines
     roll, pitch, yaw = E_down
@@ -502,13 +512,12 @@ def velocity_correction(U, A, E, L=(0,0,0), fs=100, fc=1/25, full=False):
         * Drennan Donelan Madsen Katsaros Terray Flagg 1994, JAOT 11, 1109-1116
     """
 
-    # apply integration in the frequency domain
-    vel_x = fft_integration(A[0], fs, fc, order=-1)
-    vel_y = fft_integration(A[1], fs, fc, order=-1)
-    vel_z = fft_integration(A[2], fs, fc, order=-1)
-    V = (vel_x, vel_y, vel_z)
+    # substract gravity acceleration effect
+    G = vector_rotation((0,0,-9.8), E)
     
+    # apply integration in the frequency domain and 
     # compute the derivative of the euler angles
+    V = tuple(fft_integration(a, fs, fc, order=-1) for a,g in zip(A,G))
     D = tuple(np.gradient(e, 1/fs) for e in E)
 
     # compute sines and cosines
@@ -555,3 +564,27 @@ if __name__ == "__main__":
 
 # --- end of file ---
 
+
+# h = self.Eul[2][::5] + np.pi/2
+# u, v = np.cos(h), np.sin(h)
+
+# def init():
+    # line1.set_data(X[0,:], Y[0,:])
+    # line2.set_UVC(u[0], v[0])
+    # line2.set_offsets([X[0,0], Y[0,0]])
+    # ax.set_xlim((-4,4))
+    # ax.set_ylim((-4,4))
+    # return line1, line2
+
+# def update(i):
+    # line1.set_data(X[i,:], Y[i,:])
+    # line2.set_UVC(u[i], v[i])
+    # line2.set_offsets([X[i,0], Y[i,0]])
+    # return line1, line2
+
+
+# fig, ax = plt.subplots(figsize=(6,6))
+# line1, = ax.plot([], [], "oy")
+# line2  = ax.quiver(0,0, 0, 0, scale=10)
+# anim = animation.FuncAnimation(fig, update, init_func=init,frames=len(h),
+                               # interval=25, blit=True)

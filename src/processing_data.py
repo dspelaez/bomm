@@ -17,23 +17,40 @@ import numpy as np
 import scipy.signal as signal
 import datetime as dt
 import netCDF4 as nc
-import sys
+import yaml
 import gsw
+import sys
+import os
 #
 import wdm
 #
 import motion_correction as motcor
 
 
+# functions to compute importan variables
+# fourier spectrum {{{
+def welch(x, fs, nfft=512, overlap=128):
+    """Computes the Fourier periodograms ignoring segments with NaNs."""
 
-# global variables
-# global varibles {{{
-number_of_minutes = 30
-basepath = "/Volumes/BOMM/cigom/data/bomm1_its/level1"
+    # check how if all data is nan
+    n = len(x)
+    nans = len(np.where(np.isnan(x))[0])
+    if n == nans:
+        raise Exception("Array is full of NaNs.")
+
+    # loop for each segment
+    S = []
+    for j in np.arange(0, n-nfft+overlap, overlap):
+        arr = x[j:j+nfft]
+        nans = len(np.where(np.isnan(arr))[0])
+        if nans == 0 and len(arr) == nfft:
+            f, S0 = signal.welch(arr, fs, window="hann", nperseg=nfft)
+            S += [S0]
+
+    return f, np.mean(S, axis=0)
+
 # }}}
 
-
-# functions to compute importan variables
 # wavenumber {{{
 def wavenumber(f, d=100, mode="hunt"):
     """
@@ -123,7 +140,7 @@ def wave_parameters(frqs, dirs, E):
     pDir = m(1,4) / m(0,4)
     mDir = m(1,1) / m(0,1)
 
-    return Hm0, Tp1, pDir, mDir
+    return Hm0, Tp1, np.degrees(pDir), np.degrees(mDir)
 
 # }}}
 
@@ -179,7 +196,7 @@ def eddy_correlation_flux(U, V, W, T):
     V_proj =  V_stream.copy()
     W_proj = -U_stream*np.sin(phi) + W*np.cos(phi)
 
-    def flux(x, y, method="cospectrum"):
+    def flux(x, y, method="classic"):
         if method == "cospectrum":
             f, Cuw = signal.csd(x, y, fs=100, nperseg=len(x))
             ix = np.logical_and(f>1/25, f<5)
@@ -337,7 +354,7 @@ def wind_speed_neutral(zL, U, ustar):
     ix_stab = zL > 0
     ix_unst = zL < 0
 
-    # preallocate array
+    # allocate array
     Psi = np.zeros_like(zL) * np.nan
 
     # for unstable conditions: zL<0
@@ -418,27 +435,6 @@ def air_dens(Ta, rh, Pa):
 
 
 # useful functions
-# simple_despike {{{
-def simple_despike(x, isangle=False):
-    """Remove some strange data from the time series."""
-    return nanmean(x, isangle=isangle)
-# }}}
-
-# nanmean {{{
-def nanmean(x, isangle=False):
-    """Fancy nanmean without akward warning msg. If isangle, must be in degrees."""
-    
-    x = np.asarray(x)
-    nans = np.isnan(x).nonzero()[0]
-    if len(nans) == len(x):
-        return np.nan
-    else:
-        if isangle:
-            return np.angle(nanmean(np.exp(1j*np.radians(x)))) * 180/np.pi
-        else:
-            return np.mean(x[~np.isnan(x)])
-# }}}
-
 # get data from netcdf {{{
 def get_netcdf_data(grp, date, number_of_minutes=30, only=None):
     """Return the data corresponding to the netCDF group for a specific date.
@@ -466,7 +462,8 @@ def get_netcdf_data(grp, date, number_of_minutes=30, only=None):
     j = i + int(fs*number_of_minutes*60)
 
     dic = {}
-    dic["time"] = nc.num2date(grp["time"][i:j], grp["time"].units)
+    # dic["time"] = nc.num2date(grp["time"][i:j], grp["time"].units)
+    dic["time"] = grp["time"][i:j]
     if only:
         for k in only:
             dic[k] = grp[k][i:j]
@@ -478,19 +475,118 @@ def get_netcdf_data(grp, date, number_of_minutes=30, only=None):
     return dic
     # }}}
 
-# convert to coordinate {{{
-def convert_to_coordinate(x):
-    """Convert ungly number to latitude of longitude coordinates."""
-     
-    def function(x):
-        a, b = str(x).split(".")
-        deg, mn = int(a[:-2]), int(a[-2:]) + float("0." + b)
-        return deg +  mn/60
+# simple_despike {{{
+def simple_despike(x, isangle=False):
+    """Remove some strange data from the time series."""
+    return nanmean(x, isangle=isangle)
+# }}}
+
+# nanmean {{{
+def nanmean(x, isangle=False):
+    """Fancy nanmean without akward warning msg. If isangle, must be in degrees."""
     
-    return np.array(list(map(function, x)))
+    x = np.asarray(x)
+    nans = np.isnan(x).nonzero()[0]
+    if len(nans) == len(x):
+        return np.nan
+    else:
+        if isangle:
+            return (np.angle(np.nanmean(np.exp(1j*np.radians(x))))*180/np.pi)
+        else:
+            return np.mean(x[~np.isnan(x)])
+# }}}
+
+# convert to decimal degree {{{
+def convert_to_decimal_degree(x):
+    """Convert ungly number to latitude of longitude coordinates."""
+    ddmm, ss = str(x).split(".")
+    mm, dd = float(ddmm[-2:]) , float(ddmm[:-2])
+    return np.sign(dd) * (np.abs(dd) + (mm + float(f".{ss}")) / 60.)
 # }}}
 
 
+# ad-hoc functions
+# rbr_data_correction {{{
+def rbr_data_correction(fname):
+    """Remove some strange data from the time series in RBR data.
+    
+    This function is inteded to be run after the dataset was generated. The
+    TEOS10 equations are used here to correct the RBR conductivity readings.
+    """
+    
+    import warnings
+    warnings.filterwarnings("ignore",category=RuntimeWarning)
+
+    # open dataset as append mode
+    dataset = nc.Dataset(fname, "a")
+
+    # extract data into numpy arrays
+    Cw, Tw, Sw, p = (dataset[v][:].filled() for v in ["Cw", "Tw", "Sw", "depth"])
+
+    # remove salinity data when the gradient is greater than 0.05
+    ix = np.append(False, np.abs(np.diff(Sw)) >= 0.1)
+    Sw[ix] = np.nan
+
+    # compute conductivity from teos
+    Sw_clean = Sw.copy()
+    Sw_clean[np.isnan(Sw)] = np.nanmean(Sw)
+    Cw_from_teos = gsw.C_from_SP(Sw_clean, Tw, p)
+    Sw_from_teos = gsw.SP_from_C(Cw_from_teos, Tw, p)
+
+    # compute the clean water density
+    rhow = gsw.rho(Sw_clean, Tw, p)
+    
+    # save data into the dataset
+    dataset["rhow"][:] = rhow
+    dataset["Cw"][:] = 0.1*Cw + 0.9*Cw_from_teos
+    dataset["Sw"][:] = Sw
+    #
+    dens_rel = np.sqrt(dataset["rhoa"][:]/dataset["rhow"][:])
+    dataset["wstar"][:] = dens_rel * dataset["ustar"][:]
+    
+    # close dataset
+    dataset.close()
+
+# }}}
+
+# # wstaff data correction {{{
+# def wstaff_data_correction(fname):
+    # """Remove some strange data from the time series in RBR data.
+    
+    # This function is inteded to be run after the dataset was generated. The
+    # TEOS10 equations are used here to correct the RBR conductivity readings.
+    # """
+    
+    # import warnings
+    # warnings.filterwarnings("ignore",category=RuntimeWarning)
+
+    # # open dataset as append mode
+    # dataset = nc.Dataset(fname, "a")
+
+    # # extract data into numpy arrays
+    # _vars = ["ffrq", "S", "E", "Hm0", "Tp", "Us0"]
+    # f, S, E, Hm0, Tp,  Us0 = (dataset[v][:].filled() for v in _vars)
+
+    # # find indices where waves present outliers, for that, we use the forth
+    # # wave momentum. When this quality is greater than 0.1, the data are
+    # # removed.
+    # m = lambda S: np.trapz(f**4 * S / np.nanmax(S), x=f)
+    # x = np.array([[m(S[i,:,j]) for j in range(6)] for i in range(len(S))])
+    # ix_valid = x < 0.1
+
+    # # compute the clean data
+    # S_clean = S * ix_valid[:,None,:]
+
+
+    
+    # # close dataset
+    # dataset.close()
+
+# # }}}
+
+
+
+# oop class to handle processing
 # main class {{{
 class ProcessingData(object):
 
@@ -500,19 +596,33 @@ class ProcessingData(object):
     """
 
     _list_of_dictionaries = "ekx wnd gps mvi met pro rbr sig vec wav".split()
-    __slots__ = "list_of_variables r Acc Gyr Eul".split() + _list_of_dictionaries
+    __slots__ = "metadata list_of_variables r Acc Gyr Eul".split() +\
+                 _list_of_dictionaries
 
     # private methods {{{
-    def __init__(self, date):
+    def __init__(self, metafile):
         """Function to initialize the class.
 
         Args:
             date (datetime): datetime object
         """
 
+        # load metadata
+        with open(metafile, "r") as f:
+            self.metadata = yaml.load(f)
+
+    # run function
+    def run(self, date):
+        """Run all the processing scripts"""
+
+        # global variables
+        number_of_minutes = 30
+        basepath = self.metadata["basepath"]
+        bomm_name = self.metadata["name"]
+
         # date and filename
         nm = number_of_minutes
-        filename = f"{basepath}/{date.strftime('%Y%m%d')}.nc"
+        filename = f"{basepath}/{bomm_name}/level1/{date.strftime('%Y%m%d')}.nc"
 
         # load data as dictionaries
         self.r = {}
@@ -532,28 +642,85 @@ class ProcessingData(object):
         # save date in the results dictionary
         self.r["time"] = date
 
-        # compute the motion matrices needed to the correction
-        self.motion_matrices()
+        # get data that dont depends on the motion correction
+        _list_of_methods = [self.air_data, self.water_data, self.electronics_data]
+        for function in _list_of_methods:
+            try:
+                function()
+            except Exception as e:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                string = f"{date}: {exc_type.__name__} ocurred in function " +\
+                         f"self.{function.__name__}() " + \
+                         f"at line {exc_tb.tb_lineno} ---> Error: {exc_obj}"
+                print(string)
+        
+        # get data that depends on the motion correction
+        _list_of_methods = [
+                self.motion_matrices, self.wave_data,
+                self.wind_data, self.current_data
+                ]
+        for function in _list_of_methods:
+            try:
+                function()
+            except Exception as e:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                string = f"{date}: {exc_type.__name__} ocurred in function " +\
+                         f"self.{function.__name__}() " + \
+                         f"at line {exc_tb.tb_lineno} ---> Error: {exc_obj}"
+                print(string)
+    # }}}
+
+    # check for nans in input variables {{{
+    def check_nans(self, dic, limit=0.3):
+        """Check if some of our dictionaries has more nans than wanted."""
+
+        valid = True
+        for k,v in dic.items():
+            try:
+                number_of_nans = len(np.nonzero(v.mask)[0])
+                if (number_of_nans / len(v)) >= limit:
+                    valid = False
+                    return valid
+            except AttributeError as e:
+                pass
+        return valid
+
+    # }}}
+
+    # compute buoy heading {{{
+    def compute_heading(self):
+        """Compute the heading from different sources. Return heading in deg."""
+
+        # TODO: when magnetometre will be available choose it as default
+        if hasattr(self, "mag"):
+            pass
+
+        # heading signature
+        heading_sig = (self.sig["heading"]/100) % 360
+        
+        # heading maximet
+        maximet_angle = self.metadata["sensors"]["maximet"]["maximet_angle"]
+        true_wnd, rel_wnd = self.met["true_wind_dir"], self.met["relative_wind_dir"]
+        heading_met = (true_wnd - rel_wnd + maximet_angle) % 360
+
+        # the low frequency heading means the angle between new BOMM y-axis and
+        # true north. Magnetic deviation is taken from GPS measurements. All in
+        # degrees, The mag deviation or declination is added to the current
+        # magnetic mesurement ---> (check this, im not pretty sure)
+        if np.isnan(heading_sig.filled(np.nan)).all():
+            heading = heading_met + self.gps["mag_var"][0]
+        else:
+            heading = heading_sig + self.gps["mag_var"][0]
+
+        return heading % 360
     # }}}
 
     # motion matrices {{{
     def motion_matrices(self):
         """Matrices of the acceleromter, gyroscope and euler angles"""
 
-        # heading signature
-        heading_sig = (self.sig["heading"]/100) % 360
-        
-        # heading maximet
-        true_wnd, rel_wnd = self.met["true_wind_dir"], self.met["relative_wind_dir"]
-        heading_met = (true_wnd - rel_wnd + 60) % 360
-
-        # the low frequency heading means the angle between new BOMM y-axis and
-        # true north. Magnetic deviation is taken from GPS measurements. All in
-        # degrees
-        if np.isnan(heading_sig.filled(np.nan)).all():
-            heading = heading_met + self.gps["mag_var"][0]
-        else:
-            heading = heading_sig + self.gps["mag_var"][0]
+        # buoy heading
+        heading = (-self.compute_heading()) % 360
 
         # construct accelerometer and gyroscope tuples
         # apply a rotation to an ENU frame of reference
@@ -564,22 +731,21 @@ class ProcessingData(object):
         self.Gyr = motcor.vector_rotation((self.ekx["gyro_x"],
             self.ekx["gyro_y"],  self.ekx["gyro_z"]),  R)
 
-
         # integrate accel and gyro to obtain euler angles
         phi, theta = motcor.pitch_and_roll(*self.Acc, *self.Gyr, fs=100, fc=0.04)
         psi = motcor.yaw_from_magnetometer(self.ekx["gyro_z"],
                 np.radians(heading), fs=100, fc=0.04)
-        self.Eul = (phi, theta, (-psi)%(2*np.pi))
+        self.Eul = (phi, theta, psi)
 
         # finally save the mean euler angles in the results dictionary
-        self.r["roll"] = simple_despike(self.Eul[0]*180/np.pi, isangle=True)
-        self.r["pitch"] = simple_despike(self.Eul[1]*180/np.pi, isangle=True)
-        self.r["yaw"] = simple_despike(self.Eul[2]*180/np.pi, isangle=True)
+        self.r["roll"] = nanmean(self.Eul[0]*180/np.pi, isangle=True)
+        self.r["pitch"] = nanmean(self.Eul[1]*180/np.pi, isangle=True)
+        self.r["heading"] = nanmean(heading, isangle=True)
         #
         list_of_variables = {
-                "roll"  : "average_roll_angle",
-                "pitch" : "average_pitch_angle",
-                "yaw"   : "average_yaw_angle"
+                "roll"    : "average_roll_angle",
+                "pitch"   : "average_pitch_angle",
+                "heading" : "average_heading_angle" # clockwise from north
                 }
         self.list_of_variables = {**self.list_of_variables, **list_of_variables}
 
@@ -593,15 +759,15 @@ class ProcessingData(object):
         # TODO: It is strongly recommended to limit the range of the
         #       data in the netcdf valid_range attribute.
         # compute variables from Maximet
-        twDir = simple_despike(self.met["true_wind_dir"], isangle=True)
-        rwDir = simple_despike(self.met["relative_wind_dir"], isangle=True)
+        tWdir = simple_despike(self.met["true_wind_dir"], isangle=True)
+        rWdir = simple_despike(self.met["relative_wind_dir"], isangle=True)
         Wspd = simple_despike(self.met["wind_speed"])
         Pa = simple_despike(self.met["atm_pressure"])
         Ta = simple_despike(self.met["air_temp"])
         rhum = simple_despike(self.met["rel_humidity"])
         DP = simple_despike(self.met["dew_point"])
-        pr = simple_despike(self.met["total_rain"])
-        ipr = simple_despike(self.met["rain_intensity"])
+        total_rain = simple_despike(self.met["total_rain"])
+        rain_rate = simple_despike(self.met["rain_intensity"])
         
         # compute variables from Proceanus
         aCO2 = simple_despike(self.pro["air_co2"])
@@ -610,26 +776,26 @@ class ProcessingData(object):
         rhoa = air_dens(Ta, rhum, Pa)
 
         # compute data from gps
-        lat = simple_despike(self.gps["latitude"]) 
-        lon = simple_despike(self.gps["longitude"]) 
+        lat = convert_to_decimal_degree(simple_despike(self.gps["latitude"]))
+        lon = convert_to_decimal_degree(simple_despike(self.gps["longitude"]))
         
         # save data in the output dictionary
         list_of_variables = {
-                "twDir" : "true_wind_direction",
-                "rwDir" : "relative_wind_direction",
-                "Wspd"  : "wind_speed",
-                "Pa"    : "air_pressure",
-                "Ta"    : "air_temperature",
-                "rhum"  : "relative_humidity",
-                "DP"    : "dew_point",
-                "pr"    : "total_rain",
-                "ipr"   : "rain_intensity",
-                "aCO2"  : "air_co2",
-                "wCO2"  : "water_co2",
-                "ahum"  : "air_humidity",
-                "rhoa"  : "air_density",
-                "lat"   : "latitude",
-                "lon"   : "longitude"
+                "tWdir"      : "true_wind_direction",
+                "rWdir"      : "relative_wind_direction",
+                "Wspd"       : "wind_speed",
+                "Pa"         : "air_pressure",
+                "Ta"         : "air_temperature",
+                "rhum"       : "relative_humidity",
+                "DP"         : "dew_point_temperature",
+                "total_rain" : "total_rainfall",
+                "rain_rate"  : "rainfall_rate",
+                "aCO2"       : "air_co2",
+                "wCO2"       : "water_co2",
+                "ahum"       : "air_humidity",
+                "rhoa"       : "air_density",
+                "lat"        : "latitude",
+                "lon"        : "longitude"
                 }
         #
         for k, v in list_of_variables.items():
@@ -677,39 +843,66 @@ class ProcessingData(object):
     def wave_data(self):
         """Compute directional wave spectrum and other wave parameters."""
 
+        # check for nans: if both are valid do nothing, else raise exception
+        if (self.check_nans(self.ekx) and self.check_nans(self.wav)):
+            pass
+        else:
+            raise Exception("Number of nans is more than 30%")
+
+        # check waestaffs in use
+        valid_wires = self.metadata["sensors"]["wstaff"]["valid_wires"]
+        valid_wires_index = [w - 1 for w in valid_wires]
+
         # check dimensions
-        ntime, npoint = len(self.wav["time"]), len(self.wav)-1
+        nfft = 1024
+        npoint = 6
+        ntime = len(self.wav["time"])
 
         # determinte position of the wavestaffs
-        xx, yy = wdm.reg_array(N=5, R=0.866, theta_0=180)
+        # TODO: since offset depends on each bomm, they should be passed
+        #       as an input argument.
+        x_offset, y_offset, z_offset = -0.339, 0.413, 4.45
+        xx, yy = wdm.reg_array(N=5, R=0.866, theta_0=90)
+        xx, yy = xx + x_offset, yy + y_offset
+
+        # get the sampling frequency and the resampling factor
+        fs = self.metadata["sensors"]["wstaff"]["sampling_frequency"]
+        q = int(100/fs)
 
         # allocate variables
-        S = np.zeros((int(ntime/20+1), npoint))
+        S = np.zeros((int(nfft/2+1), npoint))
         X, Y, Z = (np.zeros((ntime, npoint)) for _ in range(3))
         #
         # apply the correction to the surface elevation and compute fourier spc
         for i, (x, y), in enumerate(zip(xx, yy)):
             #
             # get suface elevation at each point
-            z = self.wav[f"ws{i+1}"] * 3.5/4095
+            z = self.wav[f"ws{i+1}"] * 3.5/4095 + z_offset
             #
             # apply motion correction
+            # fs, q = 20, 5 # BOMM1
             X[:,i], Y[:,i], Z[:,i] = motcor.position_correction((x,y,z),
-                    self.Acc, self.Eul, fs=20, fc=0.04, q=5)
+                    self.Acc, self.Eul, fs=fs, fc=0.04, q=q)
             #
             # compute fourier spectrum
-            ffrq, S[:,i] = signal.welch(Z[:,i], fs=20, 
-                    nperseg=int(ntime/10), noverlap=int(ntime/20))
+            # TODO: compute spectrum with homemade pwelch, it will allow to
+            # discard the blocks containing nan data.
+            ffrq, S[:,i] = welch(Z[:,i], fs=fs, nfft=nfft, overlap=int(nfft/4))
+
+        # limit to the half of the nfft to remove high frequency noise
+        S = np.mean(S[1:int(nfft/4)+1,valid_wires_index], axis=1)
+        ffrq = ffrq[1:int(nfft/4)+1]
 
         # compute directional wave spectrum
         # TODO: create a anti-aliasing filter to decimate the time series
-        d = lambda x: x[::5,:]
-        wfrq, dirs, E, D = wdm.fdir_spectrum(d(Z), d(X), d(Y), fs=4,
+        dfac = 2  #BOMM1:5 BOMM2:2
+        d = lambda x: x[::dfac,1:]
+        wfrq, dirs, E, D = wdm.fdir_spectrum(d(Z), d(X), d(Y), fs=int(fs/dfac),
                 limit=np.pi, omin=-5, omax=1, nvoice=16, ws=(30, 1))
         
         # compute bulk wave parameters and stokes drift magnitude
         Hm0, Tp, pDir, mDir = wave_parameters(wfrq, dirs, E)
-        Us0 = stokes_drift(ffrq, S.mean(1), z=0.0)
+        Us0 = stokes_drift(ffrq, S, z=0.0)
 
         # save data in the output dictionary
         list_of_variables = {
@@ -733,19 +926,35 @@ class ProcessingData(object):
     # }}}
 
     # wind data {{{
-    def wind_data(self, rotation_angle=30):
+    def wind_data(self):
         """Compute momentum flux and atmospheric parameters."""
 
+        # check for nans: if both are valid do nothing, else raise exception
+        if (self.check_nans(self.ekx) and self.check_nans(self.wnd)):
+            pass
+        else:
+            raise Exception("Number of nans is more than 30%")
+
         # apply the correction to the anemometer data
-        L = (0,0,13)
+        # TODO: This also should be passed as an argument or readed from the
+        #       matadata yaml file.
+        L = (0.339, -0.413, 13.01)
+        sonic_angle = self.metadata["sensors"]["sonic"]["sonic_angle"]
+        sonic_height = self.metadata["sensors"]["sonic"]["sonic_height"]
+        #
         U_unc = (self.wnd["u_wind"], self.wnd["v_wind"], self.wnd["w_wind"])
-        U_rot = motcor.vector_rotation(U_unc, (0,0,rotation_angle), units="deg")
+        U_rot = motcor.vector_rotation(U_unc, (0,0,sonic_angle), units="deg")
         U_cor = motcor.velocity_correction(U_rot, self.Acc, self.Eul, L, fs=100, fc=0.04)
 
         # compute momentum fluxes
         T = self.wnd["sonic_temp"] + 273.15 # <--- convert to Kelvin
         uw, vw, wT = eddy_correlation_flux(U_cor[0], U_cor[1], U_cor[2], T)
+
+        # compute average wind speed from anemometer
+        Ua, Va, Ts = nanmean(U_cor[0]), nanmean(U_cor[1]), nanmean(T) - 273.15
         
+        # perform correctction due to instability
+        #
         # air-sea density ratio
         default_value = lambda x,y: x if ~np.isnan(x) else y
         rhoa = default_value(self.r["rhoa"], 1.20)
@@ -757,38 +966,46 @@ class ProcessingData(object):
         wstar = np.sqrt(dens_rel) * ustar
         #
         # monin-obukhov similarity parameter
-        zL = monin_obukhov(ustar, wT, T, z=L[2])
+        z_by_L = monin_obukhov(ustar, wT, T, z=sonic_height)
+        zL = np.nanmean(z_by_L)
         #
         # average wind speed at neutral conditions
-        U10N = nanmean(wind_speed_neutral(zL, abs(U_cor[0]+1j*U_cor[1]), ustar))
+        U10N = nanmean(wind_speed_neutral(z_by_L, abs(U_cor[0]+1j*U_cor[1]), ustar))
         # 
-        # average wind speed from anemometer
-        Ua, Va, Ta = nanmean(U_cor[0]), nanmean(U_cor[1]), nanmean(T) - 273.15
-
         # save data in the output dictionary
         list_of_variables = {
-                "Ua"    : "zonal_wind_component",
-                "Va"    : "meridional_wind_component",
-                "Ta"    : "sonic_air_temperature",
-                "uw"    : "zonal_momentum_flux",
-                "vw"    : "meridional_momentum_flux",
-                "wT"    : "sensible_heat_flux",
+                "Ua"    : "eastward_wind_component",
+                "Va"    : "northward_wind_component",
+                "Ts"    : "sonic_air_temperature",
+                "uw"    : "upward_eastward_momentum_flux_in_air",
+                "vw"    : "upward_northward_momentum_flux_in_air",
+                "wT"    : "upward_sensible_heat_flux",
                 "ustar" : "airside_friction_velocity",
                 "wstar" : "waterside_friction_velocity",
-                "U10N"  : "10m_wind_speed"
+                "U10N"  : "10m_neutral_wind_speed",
+                "zL"    : "monin_obukhov_stability_parameter"
                 }
         #
-        # list_of_variables = "Ua Va Ta uw vw wT U10N"
         for k, v in list_of_variables.items():
             self.r[k] = eval(k)
         #
         # append to global list of variables
         self.list_of_variables = {**self.list_of_variables, **list_of_variables}
     # }}}
-    
+
     # current data {{{
     def current_data(self):
         """Get data from the signature current profiler and the vector velocim."""
+
+        # TODO: aqui el z-profile solo debe ser de 0 a ncel, es decir indices ya
+        # que en realidad la presion va a cambiar con el tiempo, asi que hay qye
+        # corregit eso
+
+        # check for nans: if both are valid do nothing, else raise exception
+        if (self.check_nans(self.sig) and self.check_nans(self.vec)):
+            pass
+        else:
+            raise Exception("Number of nans is more than 30%.")
 
         # compute data from vector.
         # convert from mm/s to m/s
@@ -796,18 +1013,18 @@ class ProcessingData(object):
         v2 = simple_despike(self.vec["vel_b2"]) / 1000.
         v3 = simple_despike(self.vec["vel_b3"]) / 1000.
 
-        # copute the data from the signature
+        # compute the data from the signature
         ncell = 10
         cell_size = nanmean(self.sig["cell_size"]/1000)  # <- mm to meters
         z_lower = -nanmean(self.sig["pressure"])/1000    # <- mbar to quasi-meters
         z_upper = z_lower + ncell*cell_size
         z_profile = np.linspace(z_lower, z_upper, ncell)
         #
-        sig_beams = [b for b in self.sig.keys() if b.startswith("vel_b")]
-        vel_b1 = np.nanmean(self.sig["vel_b1"] / 1000., axis=0)
-        vel_b2 = np.nanmean(self.sig["vel_b2"] / 1000., axis=0)
-        vel_b3 = np.nanmean(self.sig["vel_b3"] / 1000., axis=0)
-        vel_b5 = np.nanmean(self.sig["vel_b5"] / 1000., axis=0)
+        valid_beams = [b for b in self.sig.keys() if b.startswith("vel_b")]
+        vel_b1 = np.nanmean(self.sig[valid_beams[0]] / 1000., axis=0)
+        vel_b2 = np.nanmean(self.sig[valid_beams[1]] / 1000., axis=0)
+        vel_b3 = np.nanmean(self.sig[valid_beams[2]] / 1000., axis=0)
+        vel_b4 = np.nanmean(self.sig[valid_beams[3]] / 1000., axis=0)
         
         # save data in the output dictionary
         list_of_variables = {
@@ -818,7 +1035,7 @@ class ProcessingData(object):
                 "vel_b1": "signature_beam1_velocity",
                 "vel_b2": "signature_beam2_velocity",
                 "vel_b3": "signature_beam3_velocity",
-                "vel_b5": "signature_beam5_velocity",
+                "vel_b4": "signature_beam4_velocity",
                 }
         #
         for k, v in list_of_variables.items():
@@ -830,7 +1047,7 @@ class ProcessingData(object):
 
     # electronics data {{{
     def electronics_data(self):
-        """Get data from the internal cilinder and the ekinox motion sensor."""
+        """Get data from the internal cilinder control variables."""
 
         # compute data from marvi
         # convert from mm/s to m/s
@@ -855,19 +1072,52 @@ class ProcessingData(object):
 # }}}
 
 
-
-
 if __name__ == "__main__":
-
-    date = dt.datetime(2017, 11, 17, 0, 0, 0)
-    date = dt.datetime(2017, 11, 17, 1, 0, 0)
-    self = ProcessingData(date)
-    self.air_data()
-    self.water_data()
-    self.wave_data()
-    self.wind_data()
-    self.current_data()
-    self.electronics_data()
-
-
+    pass
+    
 # === end of file ===
+# import matplotlib.pyplot as plt;plt.ion()
+# from wdm.spectra import polar_spectrum
+
+# def ploti(i):
+
+    # fig, ax = plt.subplots(1)
+    # f,d = dataset["wfrq"][:].data, dataset["dirs"][:].data
+    # polar_spectrum(f,d,dataset["E"][i,:,:], smin=-4., smax=2., label=1, fmax=0.6, ax=ax)
+    # #
+    # Ua, Va = dataset["Ua"][i], dataset["Va"][i]
+    # tWdir = (270-dataset["tWdir"][i]) % 360 # coming from to towards
+    # Um, Vm = (dataset["Wspd"][i]*np.cos(tWdir*np.pi/180),
+              # dataset["Wspd"][i]*np.sin(tWdir*np.pi/180))
+    # #
+    # yaw = dataset['heading'][i]
+    # yaw2 = (90-yaw) % 360
+    # Uy, Vy = np.cos(yaw2*np.pi/180), np.sin(yaw2*np.pi/180)
+    # #
+    # ax.quiver(0, 0, Ua, Va, scale=20, color="r")
+    # ax.quiver(0, 0, Um, Vm, scale=20, color="b")
+    # ax.quiver(0, 0, Uy, Vy, scale=1, color="y")
+    # title = time[i].strftime("%Y-%m-%d %H:%M:%S") + \
+            # f"\nU10 = {dataset['U10N'][i]:.2f} m/s, yaw = {yaw:.1f} deg"
+    # ax.set_title(title)
+
+# def plotp(p):
+
+    # fig, ax = plt.subplots(1, figsize=(6,6))
+    # f,d = p.r["wfrq"][:], p.r["dirs"][:]
+    # polar_spectrum(f,d,p.r["E"][:,:], smin=-3., smax=2., label=1, fmax=0.6, ax=ax)
+    # #
+    # Ua, Va = p.r["Ua"], p.r["Va"]
+    # tWdir = (270-p.r["tWdir"]) % 360 # coming from to towards
+    # Um, Vm = (p.r["Wspd"]*np.cos(tWdir*np.pi/180),
+              # p.r["Wspd"]*np.sin(tWdir*np.pi/180))
+    # #
+    # yaw = p.r['heading']
+    # Uy, Vy = np.cos(yaw*np.pi/180), np.sin(yaw*np.pi/180)
+    # #
+    # ax.quiver(0, 0, Ua, Va, scale=20, color="r")
+    # ax.quiver(0, 0, Um, Vm, scale=20, color="b")
+    # ax.quiver(0, 0, Uy, Vy, scale=1, color="y")
+    # title = p.r["time"].strftime("%Y-%m-%d %H:%M:%S") + \
+            # f"\nU10 = {p.r['U10N']:.2f} m/s, yaw = {yaw:.1f} deg"
+    # ax.set_title(title)

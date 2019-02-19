@@ -3,34 +3,48 @@
 
 ---
 name: bomm2_its
-basepath: "/Volumes/BOMM/cigom/data/bomm2_its/level0/"
+basepath: "/Volumes/BOMM/cigom/data/"
 t_ini: '2018-03-03'
 t_fin: '2018-06-19'
 
-title: >
-  This dataset presents air-sea physical and chemical variables from a BOMM
-  (Oceanographic and Marine Meteorology buoy) near the Isla Todos Santos,
-  Ensenada, BC, México, from Feb to Jun 2018.
+title: BOMM2-ITS observations from Mar to Jun 2018.
 
-history: >
-  The BOMM2-ITS was deployed on 2018/02/28 and recovered on 2018/06/20.
+summary: >
+  This dataset presents air-sea physical and chemical variables from an
+  Oceanographic and Marine Meteorology buoy (BOMM) near the Isla Todos
+  Santos, Ensenada, BC, México, from Mar to Jun 2018. This dataset
+  is part of the BOMM observations test period.
 
-source: Ocean surface observations
-convention: CF-1.7
+keywords: >
+  air-sea momentum flux, air-sea carbon exchange, directional wave spectrum,
+  oceanographic buoy, wave parameters.
+
+comments: >
+  The BOMM2-ITS was deployed on 2018/03/01 and recovered on 2018/06/19.
+
 institution: CICESE - CIGOM
+date_created: 2019/01/26
 creator_name: The waves group - CICESE
 creator_url: https://www.cicese.mx/
-email: oleaje@cicese.mx
+creator_email: oleaje@cigom.org
+contributor_name: D.S.P. Zapata, F.J. Ocampo-Torres, R. Durazo
+contributor_role: Dataset creator, Principal Investigator (PI), Research line coordinator
+contributor_email: dspelaez@gmail.com, ocampo@cicese.mx, rdurazo@cicese.mx
 acknowledgments: >
   This research has been funded by Fondo Sectorial CONACYT-SENER
   Hidrocarburos, Project 201441.
 
-comments: |
-  Sampling frequency is shown in Hz, in all cases.
+references: |
+  Anctil, Donelan, Drennan, Graber, (1994). JAOT 11(4):1144–1150.
+  Donelan, Drennan, Magnusson, (1996). JPO, 26(9):1901–1914.
+  Ocampo-Torres, García-Nava, Durazo, Osuna, Méndez, Graber, (2010). BLM, 138(3):433–451.
 
-references: ''
+convention: CF-1.7
 
 
+# ---------------------------------------------------------- 
+# from now, these metada correspond to the level 1 variables
+# ----------------------------------------------------------
 sensors:
   
   ekinox:
@@ -98,6 +112,8 @@ sensors:
     seconds_per_file: 600
     serial_number : 163701
     description: Gill Instruments R3-100 3D sonic anemometer
+    sonic_angle: 120
+    sonic_height: 6.5
     convention: >
       Positive U is deflected 30 degrees CCW from the north mark and V is 120
       degrees.  It is necessary to apply a coordinate rotation to be consistent
@@ -215,6 +231,7 @@ sensors:
     seconds_per_file: 3600
     serial_number : 17290012
     description: Gill GMX-600 compact weather station
+    maximet_angle: 180
     convention: >
       Wind direction uses meteorological convention, i.e. the angle points the
       direction from the wind comes and it is measured CW from north. The
@@ -606,6 +623,7 @@ sensors:
     serial_number: OSSI-010-002F3.5
     wires_used: [7, 8, 9, 10, 11, 12]
     electronics_used: [7, 8, 9, 10, 11, 12]
+    valid_wires: [1, 2, 3, 5, 6]
     x_coordinates: [0.00, -0.87, -0.25,  0.71,  0.69, -0.28]
     y_coordinates: [0.00, -0.02, -0.83, -0.50,  0.52,  0.82]
     description: Pentagon-shape array of six Wave Staff capacitance wires
@@ -636,3 +654,423 @@ sensors:
         long_name: surface elevation in wavestaff 6
         units : counts
 
+
+# ---------------------------------------------------------- 
+# from now, these metada correspond to the level 2 variables
+# ----------------------------------------------------------
+processed_variables:
+
+  dimensions:
+    ffrq: 256
+    wfrq: 97
+    dirs: 360
+    z_profile: 10
+
+  roll:
+    standard_name: average_roll_angle
+    long_name: average roll angle
+    units: degrees
+    source: ekinox
+    valid_range: [-180, 180]
+    dimensions: time
+
+  pitch:
+    standard_name: average_pitch_angle
+    long_name: average pitch angle
+    units: degrees
+    source: ekinox
+    valid_range: [-180, 180]
+    dimensions: time
+
+  heading:
+    standard_name: average_heading_angle
+    long_name: average heading angle
+    units: degrees
+    source: ekinox
+    valid_range: [-180, 180]
+    dimensions: time
+
+  tWdir:
+    standard_name: true_wind_direction
+    long_name: wind direction relative to true north
+    units: degrees
+    source: maximet
+    valid_range: [-360, 360]
+    dimensions: time
+
+  rWdir:
+    standard_name: relative_wind_direction
+    long_name: wind direction relative to sensor mark
+    units: degrees
+    source: maximet
+    valid_range: [-360, 360]
+    dimensions: time
+
+  Wspd:
+    standard_name: wind_speed
+    long_name: average wind speed at the buoy mast
+    units: m/s
+    source: maximet
+    valid_range: [0, 50]
+    dimensions: time
+
+  Pa:
+    standard_name: air_pressure
+    long_name: atmospheric pressure at sea level
+    units: hPa
+    source: maximet
+    valid_range: [800, 1100]
+    dimensions: time
+
+  Ta:
+    standard_name: air_temperature
+    long_name: air temperature at the buoy mast
+    units: degrees_celsius
+    source: maximet
+    valid_range: [-10, 50]
+    dimensions: time
+
+  rhum:
+    standard_name: relative_humidity
+    long_name: relative humidity
+    units: percentage
+    source: maximet
+    valid_range: [0, 100]
+    dimensions: time
+
+  DP:
+    standard_name: dew_point_temperature
+    long_name: dew point temperature
+    units: degrees_celsius
+    source: maximet
+    valid_range: [-60, 40]
+    dimensions: time
+
+  total_rain:
+    standard_name: total_rainfall
+    long_name: total amount of rainfall
+    units: mm
+    source: maximet
+    valid_range: [0, 1000]
+    dimensions: time
+
+  rain_rate:
+    standard_name: rainfall_rate
+    long_name: rainfall rate
+    units: mm/h
+    source: maximet
+    valid_range: [0, 1000]
+    dimensions: time
+
+  aCO2:
+    standard_name: air_co2
+    long_name: air-side CO2 concentration
+    units: ppm
+    source: proceanus
+    valid_range: [100, 600]
+    dimensions: time
+
+  wCO2:
+    standard_name: water_co2
+    long_name: water-side CO2 concentration
+    units: ppm
+    source: proceanus
+    valid_range: [100, 600]
+    dimensions: time
+
+  ahum:
+    standard_name: air_humidity
+    long_name: absolute air humidity
+    units: mbar
+    source: proceanus
+    valid_range: [0, 100]
+    dimensions: time
+
+  rhoa:
+    standard_name: air_density
+    long_name: air density
+    units: kg/m3
+    source: derived from maximet
+    valid_range: [0.8, 1.8]
+    dimensions: time
+
+  lat:
+    standard_name: latitude
+    long_name: latitude
+    units: degrees_north
+    source: gps
+    valid_range: [-90., 90.]
+    dimensions: time
+
+  lon:
+    standard_name: longitude
+    long_name: longitude
+    units: degrees_east
+    source: gps
+    valid_range: [-360., 360.]
+    dimensions: time
+
+  pH:
+    standard_name: pH
+    long_name: pH of the sea water
+    units: units
+    source: rbr
+    valid_range: [7.5, 8.5]
+    dimensions: time
+
+  Sw:
+    standard_name: water_salinity
+    long_name: sea water salinity
+    units: ppm
+    source: rbr
+    valid_range: [33.3, 35]
+    dimensions: time
+
+  Tw:
+    standard_name: water_temperature
+    long_name: water temperature
+    units: degrees_celsius
+    source: rbr
+    valid_range: [0, 100]
+    dimensions: time
+
+  Cw:
+    standard_name: water_conductivity
+    long_name: water conductivity
+    units: mS/cm
+    source: bomm
+    valid_range: [40, 45]
+    dimensions: time
+
+  rhow:
+    standard_name: water_density
+    long_name: sea water density
+    units: kg/m3
+    source: derived from rbr using TEOS10
+    valid_range: [1000, 1050]
+    dimensions: time
+
+  depth:
+    standard_name: water_depth
+    long_name: water depth
+    units: m
+    source: rbr
+    valid_range: [6, 9]
+    dimensions: time
+
+  dissoxy:
+    standard_name: dissolved_oxygen
+    long_name: dissolved oxygen
+    units: percentage
+    source: rbr
+    valid_range: [0, 200]
+    dimensions: time
+
+  S:
+    standard_name: frequency_wave_spectrum
+    long_name: frequency wave spectrum
+    units: m2/Hz
+    source: wstaff, ekinox
+    valid_range: [0, 1000]
+    dimensions: time, ffrq
+
+  E:
+    standard_name: directional_wave_spectrum
+    long_name: directional wave spectrum from wavelet directional method
+    units: m2/Hz/rad
+    source: wstaff, ekinox
+    valid_range: [0, 1000]
+    dimensions: time, dirs, wfrq
+
+  Hm0:
+    standard_name: significant_wave_height
+    long_name: significant wave height
+    units: m
+    source: wstaff, ekinox
+    valid_range: [0, 20]
+    dimensions: time
+
+  Tp:
+    standard_name: peak_wave_period
+    long_name: robust peak wave period
+    units: s
+    source: wstaff, ekinox
+    valid_range: [0, 20]
+    dimensions: time
+
+  pDir:
+    standard_name: peak_wave_direction
+    long_name: peak wave direction
+    units: degrees
+    source: wstaff, ekinox
+    valid_range: [-360, 360]
+    dimensions: time
+
+  mDir:
+    standard_name: average_wave_direction
+    long_name: average wave direction
+    units: degrees
+    source: wstaff, ekinox
+    valid_range: [-360, 360]
+    dimensions: time
+
+  Us0:
+    standard_name: surface_stokes_drift
+    long_name: surface stokes drift
+    units: m/s
+    source: wstaff, ekinox
+    valid_range: [0, 0.7]
+    dimensions: time
+
+  Ua:
+    standard_name: eastward_wind_component
+    long_name: eastward wind component
+    units: m/s
+    source: sonic
+    valid_range: [-50, 50]
+    dimensions: time
+
+  Va:
+    standard_name: northward_wind_component
+    long_name: northward wind component
+    units: m/s
+    source: sonic
+    valid_range: [-50, 50]
+    dimensions: time
+
+  Ts:
+    standard_name: sonic_air_temperature
+    long_name: sonic air temperature
+    units: degrees_celsius
+    source: sonic
+    valid_range: [0, 100]
+    dimensions: time
+
+  uw:
+    standard_name: upward_eastward_momentum_flux_in_air
+    long_name: upward eastward momentum flux in air
+    units: m2/s2
+    source: sonic
+    valid_range: [-1,1]
+    dimensions: time
+
+  vw:
+    standard_name: upward_northward_momentum_flux_in_air
+    long_name: upward northward momentum flux in air
+    units: m2/s2
+    source: sonic
+    valid_range: [-1,1]
+    dimensions: time
+
+  wT:
+    standard_name: upward_sensible_heat_flux
+    long_name: upward sensible heat flux
+    units: Km/ s
+    source: sonic
+    valid_range: [-1,1]
+    dimensions: time
+
+  ustar:
+    standard_name: airside_friction_velocity
+    long_name: airside friction velocity
+    units: m/s
+    source: sonic, maximet
+    valid_range: [0,1]
+    dimensions: time
+
+  wstar:
+    standard_name: waterside_friction_velocity
+    long_name: waterside friction velocity
+    units: m/s
+    source: sonic, maximet, rbr
+    valid_range: [0, 0.1]
+    dimensions: time
+
+  U10N:
+    standard_name: 10m_neutral_wind_speed
+    long_name: 10m wind speed at neutral conditions
+    units: m/s
+    source: sonic, ekinox, maximet, rbr
+    valid_range: [0, 50]
+    dimensions: time
+
+  zL:
+    standard_name: monin_obukhov_stability_parameter
+    long_name: monin obukhov stability parameter
+    units: m
+    source: sonic, ekinox, maximet
+    valid_range: [-1000, 1000]
+    dimensions: time
+
+  v1:
+    standard_name: vector_beam1_velocity
+    long_name: vector beam1 velocity
+    units: m/s
+    source: vector
+    dimensions: time
+
+  v2:
+    standard_name: vector_beam2_velocity
+    long_name: vector beam2 velocity
+    units: m/s
+    source: vector
+    dimensions: time
+
+  v3:
+    standard_name: vector_beam3_velocity
+    long_name: vector beam3 velocity
+    units: m/s
+    source: vector
+    dimensions: time
+
+  vel_b1:
+    standard_name: signature_beam1_velocity
+    long_name: signature beam1 velocity
+    units: m/s
+    source: signature
+    dimensions: time, z_profile
+
+  vel_b2:
+    standard_name: signature_beam2_velocity
+    long_name: signature beam2 velocity
+    units: m/s
+    source: signature
+    dimensions: time, z_profile
+
+  vel_b3:
+    standard_name: signature_beam3_velocity
+    long_name: signature beam3 velocity
+    units: m/s
+    source: signature
+    dimensions: time, z_profile
+
+  vel_b4:
+    standard_name: signature_beam4_velocity
+    long_name: signature beam4 velocity
+    units: m/s
+    source: signature
+    dimensions: time, z_profile
+
+  Ti:
+    standard_name: internal_temperature
+    long_name: cylinder internal temperature
+    units: degrees_celsius
+    source: marvi
+    valid_range: [0, 100]
+    dimensions: time
+
+  Pi:
+    standard_name: internal_pressure
+    long_name: cylinder internal pressure
+    units: mbar
+    source: marvi
+    valid_range: [0, 2000]
+    dimensions: time
+
+  Hi:
+    standard_name: internal_humidity
+    long_name: cylinder internal humidity
+    units: percentage
+    source: marvi
+    valid_range: [0, 100]
+    dimensions: time

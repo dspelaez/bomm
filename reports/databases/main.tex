@@ -82,7 +82,8 @@
 }
 \date{
   \today \\
-  Revisión 1.0
+  Elaboró: D.S.P. Zapata \\
+  Revisión 2.0
   \vspace{2em} \\
   \begin{figure}
     \centering
@@ -118,15 +119,15 @@ datos observados con las Boyas Oceanográficas y de Meterología Marina (BOMM).
 \subsection{Niveles de procesamiento}
 \label{sub:niveles_de_procesamiento}
 
-Para los fines de este trabajo, se definieron cuatro niveles de procesamiento,
+Para los fines de este trabajo, se definieron tres niveles de procesamiento,
 los cuales se describen a continuación:
 
 \begin{description}
   \item[Nivel 0] En este nivel están los datos binarios que se escriben en la
     memoria interna de los instrumentos y los datos que son transmitidos a
     través de comunicación entre los instrumentos y la computadora de la boya.
-    Estos datos están en formato ASCII. Estos datos no tienen ningún control de
-    calidad ni tienen incorporados los metadatos.
+    Estos datos están en formato ASCII y no tienen ningún control de
+    calidad ni metadatos incorporados.
 
   \item[Nivel 1] El primer nivel de procesamiento consiste en generar la base de
     datos en formato netCDF4 a partir de los datos de Nivel 0. Se hace una
@@ -139,23 +140,41 @@ los cuales se describen a continuación:
     corregir por el movimiento de la boya, posición de los WaveStaff para el
     cálculo de los espectros direccionales.}
 
-  \item[Nivel 2] En este nivel se presentan las variables derivadas a la misma
-    tasa de muestreo del los datos del Nivel 1. Se aplican las correcciones y
-    calibraciones necesarias. Se aplican un control de calidad de los
-    datos de acuerdo a criterios físicos y estadísticos.
-    \textbf{Ejemplos:} \emph{elevación de la superficie libre del mar, velocidad
-    del viento corregida por el movimiento de la boya, perfil de corrientes
-    superficiales en el marco de referencia inercial.}
-
-  \item[Nivel 3] En el último nivel se presentan las variables resultantes de
-    agrupar y combinar los datos en un tiempo determinado. Específicamente, se
-    presentan promedios de las variables provenientes de diferentes sensores. Se
-    aplican métodologías establecidas para el cálculo de variables derivadas.
-    \textbf{Ejemplos:} \emph{espectros direccionales, esfuerzos de Reynolds, rapidez y
-    dirección del viento, parametros integrales del oleaje, etc.}
+  \item[Nivel 2] En este nivel se presentan las variables resultantes de agrupar
+    y combinar los datos en un tiempo determinado (30 minutos). Específicamente,
+    se presentan promedios de las variables provenientes de diferentes sensores.
+    Se aplican métodologías establecidas para el cálculo de variables derivadas.
+    \textbf{Ejemplos:} \emph{espectros direccionales, esfuerzos de Reynolds,
+    rapidez y dirección del viento, parametros integrales del oleaje, etc.}
 
 \end{description}
 
+% }}}
+
+% estructura de los archivos {{{
+\subsection{Estructura de los archivos}
+\label{sub:estructura_de_los_archivos}
+
+Los datos están organizados de la siguiente manera: dentro de la carpeta
+\texttt{data} hay una carpeta por cada instalación, por ejemplo, la BOMM1 que se
+instaló cerca de la Isla Todos Santos, tiene el nombre de
+\texttt{bomm1\_its}. Dentro de esta carpeta hay tres carpetas más con los datos
+de cada nivel. Más detalles se presentan en la siguiente sección.
+
+
+\begin{verbatim}
+  ./data/
+  |-- bomm1_its
+  |   |-- level0
+  |   |-- level1
+  |   `-- level2
+  |   ....
+  |    
+  `-- bomm2_its
+      |-- level0
+      |-- level1
+      `-- level2
+\end{verbatim}
 % }}}
 
 % archivos en netcdf {{{
@@ -195,10 +214,10 @@ el caso de los datos de las boyas oceanográficas.
 Se consideran como datos crudos los datos que se escriben directamente en el
 disco duro de la boya. Estos datos no tiene ningún tipo de procesamiento, y se
 escriben tal cual como salen de cada uno de los sensores.  Los datos crudos son
-los datos de nivel 0 y tienen la siguiente estructura:
+los datos de Nivel 0 y tienen la siguiente estructura:
 
 \begin{verbatim}
-  data/
+  {bomm_name}/
   |-- level0/
   |   |-- acelerometro/
   |   |-- anemometro/
@@ -213,17 +232,17 @@ los datos de nivel 0 y tienen la siguiente estructura:
   |   |-- vector/
   |   `-- wstaff/
   |-- level1/
-  |-- level2/
-  `-- level3/
+  `-- level2/
 \end{verbatim}
 
 Se genera una carpeta por cada sensor. En la mayoría de los sensores (los de alta
 frecuencia) se escribe una carpeta por año, una por mes, una por por día y una por
 hora; y se escribe un archivo cada 10 minutos. Por ejemplo, la ruta del archivo que
-corresponde a las 10:20 am del 5 de enero de 2018 del anemómetro sónico es:
+corresponde a las 10:20 am del 5 de enero de 2018 del anemómetro sónico
+instalado en la BOMM1-ITS es:
 
 \begin{verbatim}
-  ./data/level0/anemometro/2018/01/05/10/anemometro-1801051020.csv
+  ./data/bomm1_its/level0/anemometro/2018/01/05/10/anemometro-1801051020.csv
 \end{verbatim}
 
 Por otra lado, los sensores de baja frecuencia, es decir, los que reportan
@@ -260,35 +279,35 @@ alambres de capacitancia se programan para medir a una tasa de muestreo de 20
 datos por segundo, pero debido a la deriva del reloj, en ocasiones se tiene 19 o
 21 datos en un segundo. Para solucionar esto, se genera una arreglo del tiempo
 de acuerdo a la tasa de muestreo del instrumento y se aplica una interpolación
-lineal de los datos. Si hay más del 10\% de datos inválidos dentro de un
-intervalo de 10 minutos, ese intervalo se considera como inválido. Cuando son
-menos de 10\% los datos inválidos y estos no están de forma continua en el
-tiempo, los datos inválidos se reemplazan por promedios del intervalo de 10
-minutos con el fin de aplicar la interpolación.  Finalmente, cuando se tiene
+lineal de los datos. Si hay más del 10\% de datos inválidos de forma continua
+dentro de un intervalo de 10 minutos, ese intervalo se considera como inválido.
+Cuando son menos de 10\% los datos inválidos y estos no están de forma continua
+en el tiempo, los datos inválidos se reemplazan por promedios del intervalo de
+10 minutos con el fin de aplicar la interpolación.  Finalmente, cuando se tiene
 espacios vacíos, es decir, intervalos de tiempo donde la boya no registró datos,
-se genera un arreglo con datos nó válidos (NaN) del mismo tamaño y se llenan
+se genera un arreglo con datos no válidos (NaN) del mismo tamaño y se llenan
 dichos espacios vacíos. En los datos de Nivel 1 se eliminan también los datos en
 los que la boya no estaba instalada. Estos datos si se conservan en el Nivel 0.
 
+
 \subsubsection*{Estructura de los archivos}%
 
-Los datos de nivel 1 de procesamiento se escriben en archivos netCDF4, usando la
+Los datos de Nivel 1 de procesamiento se escriben en archivos netCDF4, usando la
 capacidad de generar grupos de datos, característica de este formato. Se genera
 un archivo netCDF4 por cada día de datos. El nombre cada archivo consiste en la
 fecha en el formato \texttt{'yyyymmdd'} más la extensión \text{'.nc'}, por
 ejemplo:
 
 \begin{verbatim}
-  data/
-  `-- level1/
-      |-- 20171117.nc
-      |-- 20171118.nc
-      |-- 20171119.nc
-      |--     .
-      |--     .
-      |--     .
-      |-- 20180131.nc
-      `-- 20180201.nc
+  level1/
+    |-- 20171117.nc
+    |-- 20171118.nc
+    |-- 20171119.nc
+    |--     .
+    |--     .
+    |--     .
+    |-- 20180131.nc
+    `-- 20180201.nc
 \end{verbatim}
 
 
@@ -301,8 +320,8 @@ de la BOMM1-ITS se clasifican en los siguientes grupos.
 \end{verbatim}
 
 Los grupos contienen las variables y las dimensiones. En este caso solo se tiene
-dos tipos de dimensiones, el tiempo y el número de celdas, este último es
-específico del perfilador de corrientes Signature 1000 kHz. El siguiente es un
+dos tipos de dimensiones, el tiempo y el número de celdas, esta última es
+exclusiva del perfilador de corrientes Signature 1000 kHz. El siguiente es un
 ejemplo de la estructura del grupo asociado con los datos del sensor de
 movimiento Ekinox2-M:
 
@@ -345,26 +364,37 @@ que es el formato más amigable para este tipo de información. Por ejemplo, los
 atributos globales que identifican la información de la boya son:
 
 \begin{verbatim}
-title: >
-  This dataset presents air-sea physical and chemical variables from a BOMM
-  (Oceanographic and Marine Meteorology buoy) near the Isla Todos Santos,
-  Ensenada, BC, México, from Nov 2017 to Jan 2018.
+title: BOMM1-ITS observations from Nov 2017 to Jan 2018.
 
-history: >
+summary: >
+  This dataset presents air-sea physical and chemical variables from an
+  Oceanographic and Marine Meteorology buoy (BOMM) near the Isla Todos
+  Santos, Ensenada, BC, México, from Nov 2017 to Jan 2018. This dataset
+  is part of the BOMM observations test period.
+
+keywords: >
+  air-sea momentum flux, air-sea carbon exchange, directional wave spectrum,
+  oceanographic buoy, wave parameters.
+
+comments: >
   The BOMM1-ITS was deployed on 2017/11/16 and recovered on 2018/02/02.
 
-source: Ocean surface observations
-convention: CF-1.7
 institution: CICESE - CIGOM
+date_created: 2019/01/26
 creator_name: The waves group - CICESE
 creator_url: https://www.cicese.mx/
-email: oleaje@cicese.mx
+creator_email: oleaje@cigom.org
 acknowledgments: >
   This research has been funded by Fondo Sectorial CONACYT-SENER
   Hidrocarburos, Project 201441.
 
-comments: |
-  Sampling frequency is shown in Hz, in all cases.
+references: |
+  Anctil, Donelan, Drennan, Graber, (1994). JAOT 11(4):1144–1150.
+  Donelan, Drennan, Magnusson, (1996). JPO, 26(9):1901–1914.
+  Ocampo-Torres, García-Nava, Durazo, Osuna, Méndez, Graber, (2010).
+    BLM, 138(3):433–451.
+
+convention: CF-1.7
 \end{verbatim}
 
 Igualmente, en el formato YAML se presentan los metadatos asociados con los
@@ -402,16 +432,17 @@ sensor como se muestra a continuación:
 
 En este caso, los metadatos son los mismos que se escribieron en el archivo
 NetCDF, excepto por algunos como \texttt{column} que es el número de la columna
-en la que se presentan los datos en el archivo ASCII del nivel 0.
+en la que se presentan los datos en el archivo ASCII del Nivel 0.
 
-\subsubsection*{Ejemplos de acceso a los datos}
+
+\subsubsection*{Ejemplo de acceso a los datos}
 \label{ssub:ejemplos_de_acceso_a_los_datos}
 
 Los archivos netCDF4 son de fácil acceso en la mayoría de los lenguajes de
 programación, por ejemplo, en Python se usa la paquetería
 \texttt{netcdf4-python} (\url{http://unidata.github.io/netcdf4-python/}). A
-continuación se presenta un ejemplo simple de cómo leer los datos de nivel 1 en
-\texttt{python3.6.5}.
+continuación se presenta un ejemplo simple de cómo leer los datos de Nivel 1 en
+Python 3.6.5:
 
 \begin{verbatim}
   import numpy as np
@@ -422,8 +453,8 @@ continuación se presenta un ejemplo simple de cómo leer los datos de nivel 1 e
   ekx = data["ekinox"]        #<-- lee el grupo del ekinox
   met = data["maximet"]       #<-- lee el grupo de la maximet
   #
-  a, b = 0, 180000            #<-- indices para el tiempo 30 mins
-  ax = ekx["accel_x"][a:b]    #<-- extrae la aceleracion en x
+  i, j = 0, 180000            #<-- indices para el tiempo 30 mins
+  ax = ekx["accel_x"][i:j]    #<-- extrae la aceleracion en x
 \end{verbatim}
 
 
@@ -433,13 +464,164 @@ continuación se presenta un ejemplo simple de cómo leer los datos de nivel 1 e
 % datos de nivel 2 {{{
 \subsection{Nivel 2}
 \label{sub:nivel_2}
-TODO
-% }}}
 
-% datos de nivel 3 {{{
-\subsection{Nivel 3}
-\label{sub:nivel_3}
-TODO
+Los datos de Nivel 2 consisten en promedios de 30 minutos de las variables
+físicas más importantes derivadas de las observaciones del Nivel 1. Estos datos
+se encuentran en un solo archivo netCDF4. Las variables que se tiene en este
+nivel se describen a continuación en la Tab.~\ref{tab:variables_nivel2}:
+
+\begin{table}[htpb]
+  \scriptsize
+  \centering
+  \caption{Descripción de las variables presentes en el Nivel 2.}
+  \label{tab:variables_nivel2}
+  \begin{tabular}{l l l}
+    \toprule
+    Variable & Nombre & Unidades \\
+    \midrule
+    \texttt{roll} & Inclinación adelante/atrás & grados \\
+    \texttt{pitch} & Inclinación izquierda/derecha & grados \\
+    \texttt{heading} & Orientación & grados \\
+    \texttt{tWdir} & Dirección del real viento & grados \\
+    \texttt{rWdir} & Dirección del relativa del viento & grados \\
+    \texttt{Wspd} & Rapidez del viento en el mástil & m/s \\
+    \texttt{Pa} & Presión atmosférica & hPa \\
+    \texttt{Ta} & Temperatura del aire & grados Celsius \\
+    \texttt{rhum} & Humedad relativa del aire & \% \\
+    \texttt{DP} & Temperatura del punto de rocío & grados Celsius \\
+    \texttt{total rain} & Precipitación total & mm \\
+    \texttt{rain rate} & Intensidad de la precipitación & mm/h \\
+    \texttt{aCO2} & Concentración de CO2 en el aire & ppm \\
+    \texttt{wCO2} & Concentración de CO2 en el agua & ppm \\
+    \texttt{ahum} & Humedad absoluta del aire & mbar \\
+    \texttt{rhoa} & Densidad del aire & kg/m$^3$ \\
+    \texttt{lat} & Latitud & grados norte \\
+    \texttt{lon} & Longitud & grados este \\
+    \texttt{pH} & pH del agua de mar & units \\
+    \texttt{Sw} & Salinid del agua & ppm \\
+    \texttt{Tw} & Temperatura del agua & grados Celsius \\
+    \texttt{Cw} & Conductividad del agua & mS/cm \\
+    \texttt{rhow} & Densidad in-situ del agua & kg/m$^3$ \\
+    \texttt{depth} & Profundidad & m \\
+    \texttt{dissoxy} & Oxígeno disuelto & \% \\
+    \texttt{S} & Espectro en frecuencia del oleaje & m$^2$/Hz \\
+    \texttt{E} & Espectro direccional del oleaje & m$^2$/Hz/rad \\
+    \texttt{Hm0} & Altura significante del oleaje & m \\
+    \texttt{Tp} & Período del pico espectral & s \\
+    \texttt{pDir} & Dirección del pico espectral & grados \\
+    \texttt{mDir} & Dirección promedio del oleaje & grados \\
+    \texttt{Us0} & Magnitud de la deriva de Stokes en la superficie & m/s \\
+    \texttt{Ua} & Componente zonal del viento & m/s \\
+    \texttt{Va} & Componente meridional del viento & m/s \\
+    \texttt{Ts} & Temperatura sónica & grados Celsius \\
+    \texttt{uw} & Flujo de momentum zonal & m$^2$/s$^2$ \\
+    \texttt{vw} & Flujo de momentum meridional & m$^2$/s$^2$ \\
+    \texttt{wT} & Flujo de calor sensible & K$\;$m/ s \\
+    \texttt{ustar} & Velocidad de fricción en el aire & m/s \\
+    \texttt{wstar} & Velocidad de fricción en el agua & m/s \\
+    \texttt{U10N} & Rapidez del viento a 10 m en condiciones neutrales & m/s \\
+    \texttt{v1} & Componente $v_1$ de la velocidad del agua & m/s \\
+    \texttt{v2} & Componente $v_2$ de la velocidad del agua & m/s \\
+    \texttt{v3} & Componente $v_3$ de la velocidad del agua & m/s \\
+    \texttt{vel b1} & Perfil de la velocidad en la columna - Haz 1 & m/s \\
+    \texttt{vel b2} & Perfil de la velocidad en la columna - Haz 2 & m/s \\
+    \texttt{vel b3} & Perfil de la velocidad en la columna - Haz 3 & m/s \\
+    \texttt{vel b5} & Perfil de la velocidad en la columna - Haz 5 & m/s \\
+    \texttt{Ti} & Temperatura interna del cilindro & grados Celsius \\
+    \texttt{Pi} & Presión interna del cilindro & mbar \\
+    \texttt{Hi} & Humedad interna del cilindro & \% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+
+Los atributos globales del archivo del Nivel 2 son los mismos que los de los
+archivos de Nivel 1. En este caso se definieron 6 dimensiones. La más importante
+es el tiempo ya que todas las variables dependen del tiempo. Luego está el
+número de alambres de capacitancia (6) y las frecuencias del espectro en
+frecuencias, las frecuencias y direcciones del espectro direccional y por
+último las profundidades del perfil de corrientes que mide el Signature 1000
+kHz. Un ejemplo de cómo se ven los atributos de cada una de las dimensiones se
+muestra a continuación:
+
+\begin{verbatim}
+  dimensions:
+        time = 3648 ;
+        nwstaff = 6 ;
+        ffrq = 1801 ;
+        wfrq = 97 ;
+        dirs = 360 ;
+        z_profile = 10 ;
+  variables:
+        double time(time) ;
+                time:units = "seconds since 1970-01-01 00:00:00" ;
+                time:calendar = "gregorian" ;
+        double nwstaff(nwstaff) ;
+        double ffrq(ffrq) ;
+        double wfrq(wfrq) ;
+        double dirs(dirs) ;
+        double z_profile(z_profile) ;
+        ...
+\end{verbatim}
+
+Cada una de las variables en el archivo tiene los siguientes atributos:
+\begin{description}
+  \item[\textbf{\texttt{\_FillValue}:}]
+    Valor que se usa como bandera para designar a los datos faltantes. En este
+    caso se usa \texttt{NaN} (Not a Number), que es el estándar del IEEE 754.
+
+  \item[\textbf{\texttt{standard\_name}:}]
+    En este atributo va el nombre estándar de la variable. Para acercarse lo más
+    posible a un nombre estándar se usaron las recomendaciones de la convención
+    C.F. 1.7 y además los nombres que designan los fabricantes a las variables
+    de cada sensor. 
+
+  \item[\textbf{\texttt{long\_name}:}]
+    Aquí va una descripción más detallada del nombre de la variables.
+
+  \item[\textbf{\texttt{units}:}]
+    Las unidades de la variable en formato de texto compatible.
+
+  \item[\textbf{\texttt{source}:}]
+    En este campo va la fuente de dónde se obtuvieron los datos para calcular
+    las variables. Como todas las variables del Nivel provienen de las variables
+    de Nivel 1, entonces en este atributo se puso el nombre del sensor del que
+    se obtuvo la variable.
+
+  \item[\textbf{\texttt{valid\_range}:}]
+    Este atributo contiene una lista de dos elementos con los valores mínimos y
+    máximos posibles que podría tomar la variables para que sea considerada como
+    válido. Los valores por fuera del éste rango son automáticamente
+    descartados. Este campo es bastante útil como primer criterio de depuración
+    de los datos.
+
+  \item[\textbf{\texttt{dimensions}:}]
+    En este atributo van las dimensiones de las que depende las variables. Por
+    ejemplo en el caso de la rapidez del viento, la dimensión es solo el tiempo,
+    pero en el caso del espectro direccional del oleaje, las dimensiones son
+    tiempo, frecuencia y dirección.
+
+\end{description}
+
+
+Un ejemplo de cómo se ven los atributos del flujo de calor sensible sería:
+
+\begin{verbatim}
+       double wT(time) ;
+              wT:_FillValue = NaN ;
+              wT:standard_name = "upward_sensible_heat_flux" ;
+              wT:long_name = "upward sensible heat flux" ;
+              wT:units = "Km/ s" ;
+              wT:source = "sonic anemometer" ;
+              wT:valid_range = -1LL, 1LL ;
+              wT:dimensions = "time" ; 
+\end{verbatim}
+
+
+%TODO: Las consideraciones más importantes que se tuvieron en cuenta, como se
+%calcularon las variables, espectros y demás y el disclaimer.
+
+
 % }}}
 
 

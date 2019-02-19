@@ -14,7 +14,7 @@ import glob
 import csv
 
 number_of_columns = 9
-path = "/Volumes/BOMM/BOMM1-ITS/data/level0/anemometro/"
+path = "/Volumes/BOMM/cigom/data/bomm2_its/level0/anemometro/"
 list_of_files =  glob.glob(path + "**/*.csv", recursive=True)
 
 
@@ -52,7 +52,7 @@ if __name__ == "__main__":
                     print(fname, irow, len(row))
     
     # perform correction for each file
-    if True:
+    if False:
         for fname, line, n in outdata:
             fix_number_of_columns(fname, line, n)
 

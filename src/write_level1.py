@@ -152,7 +152,8 @@ def write_netcdf(metafile):
     end = dt.datetime.strptime(b.metadata["t_fin"], "%Y-%m-%d")
 
     # restart logfile if exist
-    logfile = os.path.splitext(metafile)[0] + ".log"
+    # logfile = os.path.splitext(metafile)[0] + "_level1.log"
+    logfile = f"./log/{b.metadata['name']}_level1.log"
     with open(logfile, "w"):
         pass
 
@@ -164,14 +165,16 @@ def write_netcdf(metafile):
     while day <= end:
         
         # netcdf filename
-        fname = f"{b.basepath}/../level1/{day.strftime('%Y%m%d')}.nc"
+        fname = f"{b.basepath}/{b.bomm_name}/level1/{day.strftime('%Y%m%d')}.nc"
 
         # name of the group associated with each day
         with nc.Dataset(fname, "w") as dataset:
 
             # write global attrs
+            _exclude = ["name", "basepath", "sensors", "t_ini", "t_fin",
+                        "processed_variables"] 
             for gbl_name, gbl_values in b.metadata.items():
-                if gbl_name not in ["name", "basepath", "sensors", "t_ini", "t_fin"]:
+                if gbl_name not in _exclude:
                     dataset.setncattr(gbl_name, gbl_values)
 
             # write data for each sensor
