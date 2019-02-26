@@ -22,11 +22,5 @@ setup(name = 'bomm',
       author = 'Daniel Santiago',
       author_email = 'dspelaez@gmail.com',
       license = 'GNU',
-      packages = find_packages(),
-      install_requires = [
-          "numpy==1.14.3",
-          "pandas==0.23.0",
-          "pyyaml>=4.2b1",
-          "tqdm==4.25.0"
-          ],
+      packages = find_packages()
       zip_safe = False)
