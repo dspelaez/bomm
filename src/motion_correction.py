@@ -95,11 +95,12 @@ def resample(x, y):
 # }}}
 
 # complementery filter in using a digital filter {{{
-def complementary_filter(signal_a, signal_b, fs, fc, order=2):
+def complementary_filter(signal_a, signal_b, fs, fm, filter_order=2):
     """"Returns a merge between two angles signal_a and signal_b in radians."""
-
-    s = butterworth_filter(np.exp(1j*signal_a), fs, fc, order, kind="low") + \
-        butterworth_filter(np.exp(1j*signal_b), fs, fc, order, kind="high")
+    
+    # merge the signals using the merge frequency fm
+    s = butterworth_filter(np.exp(1j*signal_a), fs, fm, filter_order, kind="low") + \
+        butterworth_filter(np.exp(1j*signal_b), fs, fm, filter_order, kind="high")
 
     return np.angle(s)
 
@@ -295,27 +296,26 @@ def tilt_from_accerometer(ax, ay, az):
 # }}}
 
 # compute pitch and roll using a complementary_filter {{{
-def pitch_and_roll(ax, ay, az, wx, wy, wz, fs=100, fc=1/25):
+def pitch_and_roll(ax, ay, az, wx, wy, wz, fs=100, fc=1/25, fm=1):
     """Euler angles using a complementary filter in frequency domain."""
 
     # compute pitch and roll from acclerometers
     phi_acc, theta_acc = tilt_from_accerometer(ax, ay, az)
 
     # compute pitch and roll from gyrospcope
-    get_angle = lambda x: detrend(np.cumsum(x) / fs)
+    get_angle = lambda x: fft_integration(x, fs=fs, fc=fc, order=-1)
     phi_gyr, theta_gyr = get_angle(wx), get_angle(wy)
 
     # complementary filter
-    order = 2
-    phi = complementary_filter(phi_acc, phi_gyr, fs, fc, order)
-    theta = complementary_filter(theta_acc, theta_gyr, fs, fc, order)
+    phi = complementary_filter(phi_acc, phi_gyr, fs, fm=fm)
+    theta = complementary_filter(theta_acc, theta_gyr, fs, fm=fm)
 
     # return data
     return phi, theta
 # }}}
 
 # orientation from magnetic north {{{
-def yaw_from_magnetometer(wz, heading, fs=100, fc=1/25):
+def yaw_from_magnetometer(wz, heading, fs=100, fc=1/25, fm=1):
     """Returns the yaw angle measured clockwise from north.
     
     This function computes the yaw angle which is equivalent to the buoy
@@ -344,11 +344,10 @@ def yaw_from_magnetometer(wz, heading, fs=100, fc=1/25):
     mean_psi = np.nanmean(psi_mag)
 
     # compute pitch and roll from gyrospcope
-    psi_gyr = detrend(np.cumsum(wz) / fs)
+    psi_gyr = fft_integration(wz, fs=fs, fc=fc, order=-1)
 
     # complementary filter
-    order = 2
-    psi = complementary_filter(psi_mag-mean_psi, psi_gyr, fs, fc, order)
+    psi = complementary_filter(psi_mag-mean_psi, psi_gyr, fs, fm)
 
     return np.mod(psi + mean_psi, 2*np.pi)
 # }}}
@@ -414,7 +413,9 @@ def position_correction(X, A, E, fs=20, fc=1/25, q=5, full=False):
     G = vector_rotation((0,0,-9.8), E)
 
     # apply double integration in the frequency domain
-    P = tuple(fft_integration(a, fs*q, fc, order=-2) for a,g in zip(A,G))
+    P = (fft_integration(A[0], fs*q, fc=fc*2.5, order=-2), # TODO: WARNING
+         fft_integration(A[1], fs*q, fc=fc*2.5, order=-2), # TODO: WARNING
+         fft_integration(A[2], fs*q, fc=fc, order=-2))
     
     # compute the derivative of the euler angles
     D = tuple(np.gradient(e, 1/(fs*q)) for e in E)
@@ -563,28 +564,3 @@ if __name__ == "__main__":
 
 
 # --- end of file ---
-
-
-# h = self.Eul[2][::5] + np.pi/2
-# u, v = np.cos(h), np.sin(h)
-
-# def init():
-    # line1.set_data(X[0,:], Y[0,:])
-    # line2.set_UVC(u[0], v[0])
-    # line2.set_offsets([X[0,0], Y[0,0]])
-    # ax.set_xlim((-4,4))
-    # ax.set_ylim((-4,4))
-    # return line1, line2
-
-# def update(i):
-    # line1.set_data(X[i,:], Y[i,:])
-    # line2.set_UVC(u[i], v[i])
-    # line2.set_offsets([X[i,0], Y[i,0]])
-    # return line1, line2
-
-
-# fig, ax = plt.subplots(figsize=(6,6))
-# line1, = ax.plot([], [], "oy")
-# line2  = ax.quiver(0,0, 0, 0, scale=10)
-# anim = animation.FuncAnimation(fig, update, init_func=init,frames=len(h),
-                               # interval=25, blit=True)

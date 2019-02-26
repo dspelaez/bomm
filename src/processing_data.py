@@ -436,7 +436,7 @@ def air_dens(Ta, rh, Pa):
 
 # useful functions
 # get data from netcdf {{{
-def get_netcdf_data(grp, date, number_of_minutes=30, only=None):
+def get_netcdf_data(grp, date, number_of_minutes=10):
     """Return the data corresponding to the netCDF group for a specific date.
     
     Args: TODO
@@ -450,7 +450,13 @@ def get_netcdf_data(grp, date, number_of_minutes=30, only=None):
     if isinstance(fs, str):
         fs = eval(grp.sampling_frequency)
 
-    N = int(fs * 24 * 3600) # number of samples in a day
+    # assure the a sampling frequency of at least 10 minutes
+    fsmin = 1./600.
+    if fs < fsmin:
+        number_of_minutes = 30 # minimum sampling rate
+
+    # number of samples in a day
+    N = int(fs * 24 * 3600)
     hour, minute = date.hour, date.minute
 
     # check number of minutes
@@ -462,15 +468,10 @@ def get_netcdf_data(grp, date, number_of_minutes=30, only=None):
     j = i + int(fs*number_of_minutes*60)
 
     dic = {}
-    # dic["time"] = nc.num2date(grp["time"][i:j], grp["time"].units)
     dic["time"] = grp["time"][i:j]
-    if only:
-        for k in only:
+    for k in grp.variables.keys():
+        if k not in ["time"]:
             dic[k] = grp[k][i:j]
-    else:
-        for k in grp.variables.keys():
-            if k not in ["time"]:
-                dic[k] = grp[k][i:j]
 
     return dic
     # }}}
@@ -616,7 +617,7 @@ class ProcessingData(object):
         """Run all the processing scripts"""
 
         # global variables
-        number_of_minutes = 30
+        number_of_minutes = 10
         basepath = self.metadata["basepath"]
         bomm_name = self.metadata["name"]
 
@@ -708,19 +709,21 @@ class ProcessingData(object):
         # degrees, The mag deviation or declination is added to the current
         # magnetic mesurement ---> (check this, im not pretty sure)
         if np.isnan(heading_sig.filled(np.nan)).all():
-            heading = heading_met + self.gps["mag_var"][0]
+            heading = heading_met - self.gps["mag_var"][0] * 0
         else:
-            heading = heading_sig + self.gps["mag_var"][0]
+            heading = heading_sig - self.gps["mag_var"][0] * 0
 
         return heading % 360
     # }}}
 
     # motion matrices {{{
     def motion_matrices(self):
-        """Matrices of the acceleromter, gyroscope and euler angles"""
+        """Matrices of the accelerometer, gyroscope and euler angles"""
 
-        # buoy heading
-        heading = (-self.compute_heading()) % 360
+        # check for anomalous data
+        for k, v in self.ekx.items():
+            if k not in ["time"]:
+                self.ekx[k][abs(v) > 1E5] = np.nanmean(self.ekx[k])
 
         # construct accelerometer and gyroscope tuples
         # apply a rotation to an ENU frame of reference
@@ -732,20 +735,28 @@ class ProcessingData(object):
             self.ekx["gyro_y"],  self.ekx["gyro_z"]),  R)
 
         # integrate accel and gyro to obtain euler angles
-        phi, theta = motcor.pitch_and_roll(*self.Acc, *self.Gyr, fs=100, fc=0.04)
-        psi = motcor.yaw_from_magnetometer(self.ekx["gyro_z"],
-                np.radians(heading), fs=100, fc=0.04)
+        phi, theta = motcor.pitch_and_roll(*self.Acc, *self.Gyr,
+                fs=100, fc=0.04, fm=1)
+        #
+        # compute bomm heading and the merge with ekinox
+        heading = np.radians((90 - self.compute_heading()) % 360)
+        psi = motcor.yaw_from_magnetometer(self.Gyr[2], heading,
+                fs=100, fc=0.04, fm=0.04)
+        #
+        # TODO: from BOMM3 the eknox was updated to output euler angles
+        #       so we need choose phi and theta directly and psi from the
+        #       combination between the magnetometre and the ekinox
         self.Eul = (phi, theta, psi)
 
         # finally save the mean euler angles in the results dictionary
         self.r["roll"] = nanmean(self.Eul[0]*180/np.pi, isangle=True)
         self.r["pitch"] = nanmean(self.Eul[1]*180/np.pi, isangle=True)
-        self.r["heading"] = nanmean(heading, isangle=True)
+        self.r["heading"] = nanmean(self.Eul[2]*180/np.pi, isangle=True)
         #
         list_of_variables = {
                 "roll"    : "average_roll_angle",
                 "pitch"   : "average_pitch_angle",
-                "heading" : "average_heading_angle" # clockwise from north
+                "heading" : "average_heading_angle"
                 }
         self.list_of_variables = {**self.list_of_variables, **list_of_variables}
 
@@ -849,6 +860,13 @@ class ProcessingData(object):
         else:
             raise Exception("Number of nans is more than 30%")
 
+        # if heading is greater than 90 degress return an error
+        max_yaw = (np.nanmax(self.Eul[2]) - np.nanmin(self.Eul[2])) * 180/np.pi
+        if max_yaw > 90:
+            raise Exception(f"BOMM has veered too much: {max_yaw:.2f} deg")
+
+        # TODO: check wavestaff standar deviation
+
         # check waestaffs in use
         valid_wires = self.metadata["sensors"]["wstaff"]["valid_wires"]
         valid_wires_index = [w - 1 for w in valid_wires]
@@ -862,8 +880,8 @@ class ProcessingData(object):
         # TODO: since offset depends on each bomm, they should be passed
         #       as an input argument.
         x_offset, y_offset, z_offset = -0.339, 0.413, 4.45
-        xx, yy = wdm.reg_array(N=5, R=0.866, theta_0=90)
-        xx, yy = xx + x_offset, yy + y_offset
+        xx, yy = wdm.reg_array(N=5, R=0.866, theta_0=180)
+        # xx, yy = xx + x_offset, yy + y_offset
 
         # get the sampling frequency and the resampling factor
         fs = self.metadata["sensors"]["wstaff"]["sampling_frequency"]
@@ -895,10 +913,10 @@ class ProcessingData(object):
 
         # compute directional wave spectrum
         # TODO: create a anti-aliasing filter to decimate the time series
-        dfac = 2  #BOMM1:5 BOMM2:2
+        dfac = 2
         d = lambda x: x[::dfac,1:]
         wfrq, dirs, E, D = wdm.fdir_spectrum(d(Z), d(X), d(Y), fs=int(fs/dfac),
-                limit=np.pi, omin=-5, omax=1, nvoice=16, ws=(30, 1))
+                limit=np.pi, omin=-5, omax=1, nvoice=16, ws=(30, 4))
         
         # compute bulk wave parameters and stokes drift magnitude
         Hm0, Tp, pDir, mDir = wave_parameters(wfrq, dirs, E)
@@ -915,7 +933,7 @@ class ProcessingData(object):
                 "Tp"   : "peak_wave_period",
                 "pDir" : "peak_wave_direction",
                 "mDir" : "average_wave_direction",
-                "Us0"   : "surface_stokes_drift"
+                "Us0"  : "surface_stokes_drift"
                 }
         #
         for k, v in list_of_variables.items():
@@ -938,8 +956,9 @@ class ProcessingData(object):
         # apply the correction to the anemometer data
         # TODO: This also should be passed as an argument or readed from the
         #       matadata yaml file.
-        L = (0.339, -0.413, 13.01)
-        sonic_angle = self.metadata["sensors"]["sonic"]["sonic_angle"]
+        # L = (0.339, -0.413, 13.01)
+        L = (0, 0, 13.01)
+        sonic_angle = self.metadata["sensors"]["sonic"]["sonic_angle"] * 0
         sonic_height = self.metadata["sensors"]["sonic"]["sonic_height"]
         #
         U_unc = (self.wnd["u_wind"], self.wnd["v_wind"], self.wnd["w_wind"])
@@ -953,7 +972,7 @@ class ProcessingData(object):
         # compute average wind speed from anemometer
         Ua, Va, Ts = nanmean(U_cor[0]), nanmean(U_cor[1]), nanmean(T) - 273.15
         
-        # perform correctction due to instability
+        # perform correctction due to atmospheric instability
         #
         # air-sea density ratio
         default_value = lambda x,y: x if ~np.isnan(x) else y
@@ -1074,50 +1093,5 @@ class ProcessingData(object):
 
 if __name__ == "__main__":
     pass
-    
+
 # === end of file ===
-# import matplotlib.pyplot as plt;plt.ion()
-# from wdm.spectra import polar_spectrum
-
-# def ploti(i):
-
-    # fig, ax = plt.subplots(1)
-    # f,d = dataset["wfrq"][:].data, dataset["dirs"][:].data
-    # polar_spectrum(f,d,dataset["E"][i,:,:], smin=-4., smax=2., label=1, fmax=0.6, ax=ax)
-    # #
-    # Ua, Va = dataset["Ua"][i], dataset["Va"][i]
-    # tWdir = (270-dataset["tWdir"][i]) % 360 # coming from to towards
-    # Um, Vm = (dataset["Wspd"][i]*np.cos(tWdir*np.pi/180),
-              # dataset["Wspd"][i]*np.sin(tWdir*np.pi/180))
-    # #
-    # yaw = dataset['heading'][i]
-    # yaw2 = (90-yaw) % 360
-    # Uy, Vy = np.cos(yaw2*np.pi/180), np.sin(yaw2*np.pi/180)
-    # #
-    # ax.quiver(0, 0, Ua, Va, scale=20, color="r")
-    # ax.quiver(0, 0, Um, Vm, scale=20, color="b")
-    # ax.quiver(0, 0, Uy, Vy, scale=1, color="y")
-    # title = time[i].strftime("%Y-%m-%d %H:%M:%S") + \
-            # f"\nU10 = {dataset['U10N'][i]:.2f} m/s, yaw = {yaw:.1f} deg"
-    # ax.set_title(title)
-
-# def plotp(p):
-
-    # fig, ax = plt.subplots(1, figsize=(6,6))
-    # f,d = p.r["wfrq"][:], p.r["dirs"][:]
-    # polar_spectrum(f,d,p.r["E"][:,:], smin=-3., smax=2., label=1, fmax=0.6, ax=ax)
-    # #
-    # Ua, Va = p.r["Ua"], p.r["Va"]
-    # tWdir = (270-p.r["tWdir"]) % 360 # coming from to towards
-    # Um, Vm = (p.r["Wspd"]*np.cos(tWdir*np.pi/180),
-              # p.r["Wspd"]*np.sin(tWdir*np.pi/180))
-    # #
-    # yaw = p.r['heading']
-    # Uy, Vy = np.cos(yaw*np.pi/180), np.sin(yaw*np.pi/180)
-    # #
-    # ax.quiver(0, 0, Ua, Va, scale=20, color="r")
-    # ax.quiver(0, 0, Um, Vm, scale=20, color="b")
-    # ax.quiver(0, 0, Uy, Vy, scale=1, color="y")
-    # title = p.r["time"].strftime("%Y-%m-%d %H:%M:%S") + \
-            # f"\nU10 = {p.r['U10N']:.2f} m/s, yaw = {yaw:.1f} deg"
-    # ax.set_title(title)

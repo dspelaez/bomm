@@ -43,7 +43,11 @@ def write_variables(metadata, dataset):
     t_ini = dt.datetime.strptime(metadata["t_ini"], "%Y-%m-%d")
     t_fin = dt.datetime.strptime(metadata["t_fin"], "%Y-%m-%d")
     t_fin += dt.timedelta(hours=24)
-    ntime = int((t_fin - t_ini).days * 48) # there are 48 half hours in a day
+    #
+    number_of_minutes = 10
+    samples_per_day = int(24 * 60 / number_of_minutes)
+    #
+    ntime = int((t_fin - t_ini).days * samples_per_day)
 
     # create time variable
     global global_time_units
@@ -134,7 +138,7 @@ def write_netcdf(metafile):
                     pass
             #
             # update date
-            date += dt.timedelta(minutes=30) 
+            date += dt.timedelta(minutes=10) 
             i += 1
         #
         # add the other dimensions
