@@ -112,7 +112,7 @@ sensors:
     seconds_per_file: 600
     serial_number : 163701
     description: Gill Instruments R3-100 3D sonic anemometer
-    sonic_angle: 120
+    sonic_angle: 30
     sonic_height: 6.5
     convention: >
       Positive U is deflected 30 degrees CCW from the north mark and V is 120
@@ -670,6 +670,7 @@ processed_variables:
     standard_name: average_roll_angle
     long_name: average roll angle
     units: degrees
+    convention: math convention; rotation around earth X (east-ward) axis
     source: ekinox
     valid_range: [-180, 180]
     dimensions: time
@@ -678,6 +679,7 @@ processed_variables:
     standard_name: average_pitch_angle
     long_name: average pitch angle
     units: degrees
+    convention: math convention; rotation around earth Y (north-ward) axis
     source: ekinox
     valid_range: [-180, 180]
     dimensions: time
@@ -686,6 +688,7 @@ processed_variables:
     standard_name: average_heading_angle
     long_name: average heading angle
     units: degrees
+    convention: math convention; angle measured from the east positive counter-clockwise
     source: ekinox
     valid_range: [-180, 180]
     dimensions: time
@@ -694,6 +697,7 @@ processed_variables:
     standard_name: true_wind_direction
     long_name: wind direction relative to true north
     units: degrees
+    convention: meterological convention; angle from north, positive clockwise, wind coming from
     source: maximet
     valid_range: [-360, 360]
     dimensions: time
@@ -702,6 +706,8 @@ processed_variables:
     standard_name: relative_wind_direction
     long_name: wind direction relative to sensor mark
     units: degrees
+    convention: meteorological convention; angle from sensor mark, positive clockwise, wind coming from
+    comments: the sensor mark points 180 degrees counter-clockwise from the buoy north
     source: maximet
     valid_range: [-360, 360]
     dimensions: time
@@ -710,6 +716,7 @@ processed_variables:
     standard_name: wind_speed
     long_name: average wind speed at the buoy mast
     units: m/s
+    sensor_height: 5.5
     source: maximet
     valid_range: [0, 50]
     dimensions: time
@@ -902,6 +909,7 @@ processed_variables:
     standard_name: peak_wave_direction
     long_name: peak wave direction
     units: degrees
+    convention: math convention; angle measured from east, positve counter-clockwise, towards waves go
     source: wstaff, ekinox
     valid_range: [-360, 360]
     dimensions: time
@@ -910,6 +918,7 @@ processed_variables:
     standard_name: average_wave_direction
     long_name: average wave direction
     units: degrees
+    convention: math convention; angle measured from east, positve counter-clockwise, towards waves go
     source: wstaff, ekinox
     valid_range: [-360, 360]
     dimensions: time
@@ -926,6 +935,7 @@ processed_variables:
     standard_name: eastward_wind_component
     long_name: eastward wind component
     units: m/s
+    sensor_height: 6.5
     source: sonic
     valid_range: [-50, 50]
     dimensions: time
@@ -934,6 +944,7 @@ processed_variables:
     standard_name: northward_wind_component
     long_name: northward wind component
     units: m/s
+    sensor_height: 6.5
     source: sonic
     valid_range: [-50, 50]
     dimensions: time
@@ -947,16 +958,16 @@ processed_variables:
     dimensions: time
 
   uw:
-    standard_name: upward_eastward_momentum_flux_in_air
-    long_name: upward eastward momentum flux in air
+    standard_name: upward_eastward_turbulent_wind_correlation
+    long_name: upward eastward turbulent wind correlation
     units: m2/s2
     source: sonic
     valid_range: [-1,1]
     dimensions: time
 
   vw:
-    standard_name: upward_northward_momentum_flux_in_air
-    long_name: upward northward momentum flux in air
+    standard_name: upward_northward_turbulent_wind_correlation
+    long_name: upward northward turbulent wind correlation
     units: m2/s2
     source: sonic
     valid_range: [-1,1]

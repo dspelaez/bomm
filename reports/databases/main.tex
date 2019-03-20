@@ -203,7 +203,7 @@ el caso de los datos de las boyas oceanográficas.
 
 % }}}
 
-% Procesamiento de los datos {{{
+% descripción de la base de datos {{{
 \section{Descripción de la base de datos}%
 \label{sec:descripcion_de_la_base_de_datos}
 
@@ -625,6 +625,150 @@ Un ejemplo de cómo se ven los atributos del flujo de calor sensible sería:
 % }}}
 
 
+% }}}
+
+% procesamiento de los datos {{{
+\section{Procesamiento de los datos}
+\label{sec:proceamiento_de_los_datos}
+
+En esta sección se hace una descripción del procedimiento llevado a cabo para la
+generación de los datos del segundo nivel de procesamiento. Se explican los
+métodos y algunas consideraciones.
+
+\subsubsection*{Parámetros del oleaje}%
+\label{ssub:parametros_del_oleaje}
+
+El cálculo del espectro direccional del oleaje permite la estimación de
+diferentes parámetros. En este caso se calcularon los principales. La altura
+significante del oleaje se estimó como:
+
+\begin{equation}
+  H_{m0} = 4 \left[ \iint E(f, \theta) d\theta df \right]^{1/2},
+\end{equation}
+
+esta es una medida directa de la energía de las olas. Igualmente, el período
+asociado al pico espectral y su dirección se calcularon usando una estimación
+robusta para evitar la dependencia de la resolución espectral:
+
+\begin{equation}
+  T_{p} = \frac{{\displaystyle \int} S(f)^4 df}{{\displaystyle \int} f S(f)^4 df},
+  \hspace{2em}
+  \theta_{p} = \frac{{\displaystyle \int} \Theta(\theta)^4 d\theta}{{\displaystyle \int}
+  \theta \Theta(\theta)^4 d\theta},
+\end{equation}
+
+donde $S(f)=\int{E(f, \theta)} d\theta$ y $\Theta(\theta) = \int{E(f,\theta)}
+df$ son los espectros integrados en dirección y en frecuencia, respectivamente,
+La dirección promedio del oleaje se calculó como:
+
+\begin{equation}
+  \overline{\theta} = \tan^{-1} \left\{ \frac{
+                 {\displaystyle \iint E(f,\theta)\sin\theta} d\theta df}
+                {{\displaystyle \iint E(f,\theta)\cos\theta } d\theta df}
+                         \right\}.
+\end{equation}
+
+Otro de los parámetros más importantes del oleaje es la deriva de Stokes. En
+este caso se calculó la deriva de Stokes en la superficie a partir del espectro
+integrado en dirección como:
+
+\begin{equation}
+  U_{s}(z) = \frac{16 \pi^3}{g} \int f^3 S(f) e^{2kz} df.
+\end{equation}
+
+Una recomendación es que se calcule la deriva de Stokes a partir de las
+componentes del espectro direcciones, es decir,
+\begin{equation}
+  \mathbf{U}_{s}(z) = U_s \mathbf{\hat{x}} + V_s \mathbf{\hat{y}}
+\end{equation}
+
+\begin{equation}
+  \mathbf{U}_{s}(z) = \frac{16 \pi^3}{g} \left[
+    \mathbf{\hat{x}} {\displaystyle \iint f^3 E(f,\theta)\cos\theta } e^{2kz} d\theta df + 
+    \mathbf{\hat{y}} {\displaystyle \iint f^3 E(f,\theta)\sin\theta } e^{2kz} d\theta df
+  \right]
+\end{equation}
+
+donde $\mathbf{\hat{x}}$ y $\mathbf{\hat{y}}$ representan los vectores unitarios
+en el plano cartesiano.
+
+
+\subsubsection*{Parámetros del flujo de momentum}%
+\label{ssub:parametros_del_flujo_de_momentum}
+
+El flujo de momentum entre el océano y la atmósfera se estima a partir de la
+velocidad de fricción, la cual a su vez es calculada en función de las
+fluctuaciones turbulentas de la velocidad del viento, que se miden con el
+anemómetro sónico. En ese orden de ideas, lo primero que se hace es rotar el
+sistema de coordenadas del anemómetro en la dirección del viento promedio de un
+intervalo de 10 minutos (o 30 minutos). Con esto se garantiza que
+$\overline{V}=\overline{W}=0$. El flujo de momentum en dirección del viento
+promedio es entonces calculado a partir del esfuerzo de Reynolds en la misma
+dirección, es decir, $\tau_x = -\rho_a \overline{u'w'}$. Análogamente, el
+esfuerzo del viento en la dirección perpendicular es $\tau_y = -\rho_a
+\overline{v'w'}$. Estas correlaciones se calcularon simplemente como:
+
+\begin{equation}
+  \overline{u'w'} = \frac{1}{N} \sum_{i=1}^{N} (U-\overline{U})(W-\overline{W}),
+\end{equation}
+
+y,
+
+\begin{equation}
+  \overline{v'w'} = \frac{1}{N} \sum_{i=1}^{N} (V-\overline{U})(W-\overline{W}).
+\end{equation}
+
+donde $N$ es el número de datos. La velocidad de fricción en el aire se calculó
+como:
+
+\begin{equation}
+  u_\star = \left( \overline{u'w'}^2 + \overline{v'w'}^2 \right)^{1/4},
+\end{equation}
+
+y su análoga en el agua, considerando conservación del flujo momentum en la
+interfase, como:
+
+\begin{equation}
+  w_\star =  u_\star \sqrt{\rho_a / \rho_w},
+\end{equation}
+
+donde $\rho_a$ representa la densidad del aire y $\rho_w$ la del agua, las
+cuales fueron calculadas usando la ecuación de estado de TEOS10 implementada en
+\texttt{python} (\url{http://www.github.com/TEOS-10/GWS-python})
+
+
+\begin{equation}
+  L = \frac{T_s u_\star^3}{\kappa g \overline{w'T'_s}}
+\end{equation}
+
+\begin{equation}
+  U_{zN} = U_{6.5} + \frac{u_\star}{\kappa}  \Psi (z/L)
+\end{equation}
+
+\begin{equation}
+  U_{10N} = U_{zN} + \frac{u_\star}{\kappa} \log\left(\frac{10}{z}\right)
+\end{equation}
+
+
+\citet{Hogstrom1988}
+
+\begin{equation}
+  %\Psi(z/L) = 
+  \Psi(z/L) = \left\{
+    \begin{array}{cc}
+      (1 + 15.2 z/L)^{1/4}, & z/L < 0 \\
+      1 + 4.8 z/L,          & z/L > 0
+    \end{array}  
+  \right.
+\end{equation}
+
+
+
+% }}}
+
+% referencias {{{
+\bibliographystyle{apalike}
+\bibliography{./references.bib}
 % }}}
 
 

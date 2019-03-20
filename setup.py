@@ -15,12 +15,12 @@ Created:  2018-06-13 16:46
 
 from setuptools import setup, find_packages
 
-setup(name = 'bomm',
+setup(name = 'bomm/src',
       version = '0.1',
       description = 'Program to handle BOMM data',
       url = 'https://github.com/dspelaez/bomm',
       author = 'Daniel Santiago',
       author_email = 'dspelaez@gmail.com',
       license = 'GNU',
-      packages = find_packages()
+      packages = find_packages(),
       zip_safe = False)
