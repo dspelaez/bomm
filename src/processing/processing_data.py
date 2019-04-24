@@ -907,7 +907,7 @@ class ProcessingData(object):
             # apply motion correction
             # fs, q = 20, 5 # BOMM1
             X[:,i], Y[:,i], Z[:,i] = motcor.position_correction((x,y,z),
-                    self.Acc, self.Eul, fs=fs, fc=0.04, q=q)
+                    self.Acc, self.Eul, fs=fs, fc=0.08, q=q)
             #
             # compute fourier spectrum
             # TODO: compute spectrum with homemade pwelch, it will allow to
@@ -970,7 +970,7 @@ class ProcessingData(object):
         #
         U_unc = (self.wnd["u_wind"], self.wnd["v_wind"], self.wnd["w_wind"])
         U_rot = motcor.vector_rotation(U_unc, (0,0,sonic_angle), units="deg")
-        U_cor = motcor.velocity_correction(U_rot, self.Acc, self.Eul, L, fs=100, fc=0.04)
+        U_cor = motcor.velocity_correction(U_rot, self.Acc, self.Eul, L, fs=100, fc=0.08)
 
         # compute momentum fluxes
         T = self.wnd["sonic_temp"] + 273.15 # <--- convert to Kelvin

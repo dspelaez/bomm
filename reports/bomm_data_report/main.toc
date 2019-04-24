@@ -1,0 +1,8 @@
+\babel@toc {spanish}{}
+\contentsline {section}{\numberline {1}Introducción}{3}{section.1}
+\contentsline {section}{\numberline {2}Procesamiento de los datos}{3}{section.2}
+\contentsline {section}{\numberline {3}Resultados}{5}{section.3}
+\contentsline {subsection}{\numberline {3.1}BOMM1-ITS}{5}{subsection.3.1}
+\contentsline {subsection}{\numberline {3.2}BOMM2-ITS}{8}{subsection.3.2}
+\contentsline {subsection}{\numberline {3.3}BOMM1-PER}{12}{subsection.3.3}
+\contentsline {section}{\numberline {4}Comentarios finales}{17}{section.4}

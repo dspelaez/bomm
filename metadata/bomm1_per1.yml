@@ -6,8 +6,7 @@ name: bomm1_per1
 #basepath: "/Volumes/PERDIDO1/"
 basepath: "/Volumes/Boyas/bomm_database/data"
 t_ini: '2018-07-11'
-t_fin: '2018-07-27'
-#t_fin: '2019-02-27'
+t_fin: '2019-02-27'
 
 title: BOMM1-PER1 observations from Jul 2018 to Feb 2019.
 
@@ -995,7 +994,7 @@ processed_variables:
     long_name: airside friction velocity
     units: m/s
     source: sonic, maximet
-    valid_range: [0,1]
+    valid_range: [0,10]
     dimensions: time
 
   wstar:
@@ -1003,7 +1002,7 @@ processed_variables:
     long_name: waterside friction velocity
     units: m/s
     source: sonic, maximet, rbr
-    valid_range: [0, 0.1]
+    valid_range: [0, 1]
     dimensions: time
 
   U10N:

@@ -297,14 +297,14 @@ if __name__ == "__main__":
 
     path = "../.."
     #
-    date = dt.datetime(2017, 11, 27, 23, 30)
-    metafile = f"{path}/metadata/bomm1_its.yml" 
+    date =  dt.datetime(2018, 7, 24, 17)
+    metafile = f"{path}/metadata/bomm1_per1.yml" 
     fig, ax = plot_wave_spectra(metafile, date)
-    figname = f"{path}/reports/figures/bomm1_wdm_{date.strftime('%Y%m%d%H')}.png"
+    figname = f"{path}/reports/figures/bomm1_per1_{date.strftime('%Y%m%d%H')}.png"
     fig. savefig(figname, dpi=600)
     
-    date = dt.datetime(2018,4,7,13)
-    metafile = "../../metadata/bomm2_its.yml" 
-    fig, ax = plot_wave_spectra(metafile, date)
-    figname = f"{path}/reports/figures/bomm2_wdm_{date.strftime('%Y%m%d%H')}.png"
-    fig. savefig(figname, dpi=600)
+    # date = dt.datetime(2018,4,7,13)
+    # metafile = "../../metadata/bomm2_its.yml" 
+    # fig, ax = plot_wave_spectra(metafile, date)
+    # figname = f"{path}/reports/figures/bomm2_wdm_{date.strftime('%Y%m%d%H')}.png"
+    # fig. savefig(figname, dpi=600)

@@ -17,13 +17,14 @@ import datetime as dt
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import matplotlib.dates as mdates
+import locale
 import os
 #
 from src.processing.wdm.spectra import polar_spectrum
 #
 plt.ioff()
 np.warnings.filterwarnings('ignore')
-
+locale.setlocale(locale.LC_TIME, "es_ES")
 
 
 # main class {{{
@@ -49,6 +50,10 @@ class PlotSpectra(object):
         self.Hs = dataset["Hm0"][i:j]
         self.Tp = dataset["Tp"][i:j]
 
+        # stokes drift
+        # self.Us = self.Hs * np.cos(np.radians(dataset["mDir"][i:j]))
+        # self.Vs = self.Hs * np.sin(np.radians(dataset["mDir"][i:j]))
+
         # sonic anemometer
         self.Ua = dataset["Ua"][i:j]
         self.Va = dataset["Va"][i:j]
@@ -56,8 +61,8 @@ class PlotSpectra(object):
         # yaw and maximet data
         self.yaw = dataset['heading'][i:j]
         self.Wspd = dataset["U10N"][i:j]
-        # self.tWdir = (270 - dataset["tWdir"][i:j]) % 360
-        self.tWdir = np.arctan2(self.Va, self.Ua) * 180/np.pi
+        self.tWdir = (270 - dataset["tWdir"][i:j]) % 360
+        self.aWdir = np.arctan2(self.Va, self.Ua) * 180/np.pi
 
         # drag coefficient
         self.CD = dataset["ustar"][i:j]**2 / self.Wspd**2
@@ -69,12 +74,32 @@ class PlotSpectra(object):
         self.Um = self.Wspd * np.cos(self.tWdir * np.pi/180)
         self.Vm = self.Wspd * np.sin(self.tWdir * np.pi/180)
 
+        # creat folder to store figures
+        bomm_name = os.path.split(fname)[-1][:9]
+        t_ini_str = t_ini.strftime('%Y%m%d')
+        t_fin_str = t_ini.strftime('%Y%m%d')
+        self.folder = f"./animation_{bomm_name}_{t_ini_str}_{t_fin_str}/"
+
     
     def set_limits(self, x, ax):
         """Set the limit of the axes."""
 
         xmin, xmax = np.floor(np.nanmin(x)), np.ceil(np.nanmax(x))
         ax.set_ylim((xmin, xmax))
+
+
+    def stokes_drift(self, f, S, z=0):
+        """Compute stokes drift profile as Breivik et al 2016 eq5."""
+        
+        # angular frequency and spectrum in right units
+        g = 9.8
+        w = 2*np.pi * f
+        k = w**2 / g
+        Sw = S / (2*np.pi)
+        
+        fac = 2 / g
+        dummy = w**3 * Sw * np.exp(2*k*z)
+        return np.trapz(fac*dummy, w)
 
     
     def plot_wave_spectrum(self, i, ax):
@@ -84,9 +109,10 @@ class PlotSpectra(object):
                 label=True, smin=-2., smax=2., fmax=0.5, ax=ax, cbar=True)
         #
         # plot_arrows
-        ax.quiver(0, 0, self.Ua[i], self.Va[i], scale=20, color="r")
-        # ax.quiver(0, 0, Um[i], Vm[i], scale=20, color="b")
-        ax.quiver(0, 0, self.Uy[i], self.Vy[i], scale=1, color="y")
+        ax.quiver(0, 0, self.Ua[i], self.Va[i], scale=30,  color="blue")
+        ax.quiver(0, 0, self.Um[i], self.Vm[i], scale=30,  color="darkblue")
+        ax.quiver(0, 0, self.Uy[i], self.Vy[i], scale=1,   color="gold")
+        # ax.quiver(0, 0, self.Us[i], self.Vs[i], scale=10, color="darkred")
 
         # plot wind-sea / swell delimiter
         wdirs = np.radians((self.dirs - self.tWdir[i]))
@@ -97,9 +123,9 @@ class PlotSpectra(object):
         ax.plot(fcutx, fcuty, lw=0.5, ls="-", color="0.5")
 
         # # set wind label
-        # ulabel = f"$u_{{10}} = {Wspd[i]:.2f}$ m/s\n" + \
-                # f"$\\theta_{{u}} = {tWdir[i]:.2f}^\circ$"
-        # ax.text(0.01, 0.98, ulabel, transform=ax.transAxes, ha="left", va="top")
+        ulabel = f"$u_{{10}} = {self.Wspd[i]:.2f}$ m/s\n" + \
+                f"$\\theta_{{u}} = {self.tWdir[i]:.2f}^\circ$"
+        ax.text(0.01, 0.98, ulabel, transform=ax.transAxes, ha="left", va="top")
         
         title = self.time[i].strftime("%Y-%m-%d %H:%M:%S")
         ax.set_title(title)
@@ -114,7 +140,7 @@ class PlotSpectra(object):
         ax1 = plt.subplot2grid(shape=(3,2), loc=(0,1))
         ax2 = plt.subplot2grid(shape=(3,2), loc=(1,1))
         ax3 = plt.subplot2grid(shape=(3,2), loc=(2,1))
-        fig.subplots_adjust(top=.95, bottom=.1, left=.06, right=.93, wspace=.2, hspace=.1)
+        fig.subplots_adjust(top=.95, bottom=.1, left=.06, right=.93, wspace=.2, hspace=.2)
 
         ax1.plot(self.time, self.Hs, c="k")
         ax2.plot(self.time, self.Tp, c="k")
@@ -130,21 +156,23 @@ class PlotSpectra(object):
         #
         for ax in (ax1, ax2, ax3):
             ax.yaxis.tick_right()
+            ax.yaxis.set_major_locator(plt.MaxNLocator(4))
             ax.yaxis.set_label_position("right")
-            ax.xaxis.set_minor_locator(mdates.HourLocator(interval=1))
-            ax.xaxis.set_major_locator(mdates.HourLocator(interval=6))
-            ax.xaxis.set_major_formatter(mdates.DateFormatter("%H"))
-            ax.set_xticklabels([''])
+            ax.yaxis.set_ticks_position("both")
+            ax.xaxis.set_minor_locator(mdates.HourLocator(range(0,24,3)))
+            ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d\n%Y"))
+
+
+        ax1.set_xticklabels([''])
+        ax2.set_xticklabels([''])
         # 
-        ax3.set_xlabel(f"Hours since {self.time[0].strftime('%Y/%m/%d')}")
+        # ax3.set_xlabel(f"Hours since {self.time[0].strftime('%Y/%m/%d')}")
         #
         self.plot_wave_spectrum(i, ax0)
-        # pcolor = ax0.collections[0]
-        # arrow1 = ax0.collections[4]
-        # arrow2 = ax0.collections[5]
-        point1, = ax1.plot(self.time[i], self.Hs[i], "oy", ms=5)
-        point2, = ax2.plot(self.time[i], self.Tp[i], "oy", ms=5)
-        point3, = ax3.plot(self.time[i], self.Wspd[i], "oy", ms=5)
+        point1, = ax1.plot(self.time[i], self.Hs[i], "oy", ms=3)
+        point2, = ax2.plot(self.time[i], self.Tp[i], "oy", ms=3)
+        point3, = ax3.plot(self.time[i], self.Wspd[i], "oy", ms=3)
 
         return fig, ax0, ax1, ax2, ax3
 
@@ -152,61 +180,28 @@ class PlotSpectra(object):
     def animate(self):
         """Loop for each time."""
 
+        # create folder if it does not exist
+        os.system(f"mkdir -p {self.folder}")
+
         for i in range(len(self.time)):
             fig, *ax = self.make_plot(i)
-            figname = f"./figures/{self.time[i].strftime('%Y%m%d%H%M')}.png"
-            fig.savefig(figname, dpi=300)
+            figname = f"{self.folder}/{self.time[i].strftime('%Y%m%d%H%M')}.png"
+            fig.savefig(figname, dpi=100)
             print(f"Plotting file ---> {figname}")
             plt.close()
 
-        os.system("convert figures/*.png -delay 100 figures/movie.gif")
+        c = f"convert {self.folder}/*.png -delay 100 -quality 50 {self.folder}/movie.gif"
+        os.system(c)
 
-    
-    def plot_drag_coefficient(self):
-        """Plot drag coefficient for specific dates"""
-        
-        def smith(u):
-            return 1E-3*(0.63+0.066*u)
-
-        def large_pond(u):
-            u, CD = np.array(u), np.empty_like(u)
-            CD[u<=3] = 0.62+1.56/u[u<=3]
-            CD[np.logical_and(u>3, u<=10)] = 1.14
-            CD[u>10] = 0.49+0.065*u[u>10]
-            return 1E-3 * CD
-
-        fig, ax = plt.subplots(1, figsize=(6,3.5))
-        sc = ax.scatter(self.Wspd, self.CD, s=5, c=self.Hs, vmin=0, vmax=1.6)
-        cb = fig.colorbar(sc)
-        cb.set_label("$H_{m0}$ [m]")
-        
-        xx = np.linspace(1, np.nanmax(self.Wspd), 100)
-        ax.plot(xx, smith(xx), lw=1.2, ls="--", c="k",
-                label="Smith (1970)", zorder=2)
-        ax.plot(xx, large_pond(xx), lw=1.2, ls="-", c="k",
-                label="Large y Pond (1981)", zorder=2)
-
-        ax.set_xlim((0.,14))
-        ax.set_ylim((-0.001,0.015))
-        ax.set_xlabel("$U_{10N}$ [m/s]")
-        ax.set_ylabel("$C_{D}$")
-        ax.legend()
-        fig.savefig("figures/drag_coefficient.png", dpi=600)
 # }}}
-
-
-
-
-
 
 
 if __name__ == "__main__":
 
-    path = "../.."
-    filename = f"{path}/data/bomm2_its/level2/bomm2_its.level2.10min.nc"
-    t_ini = dt.datetime(2018, 4, 11)
-    t_end = dt.datetime(2018, 4, 14)
-    s = PlotSpectra(filename, t_ini, t_end)
+    basepath = "/Volumes/Boyas/bomm_database/data/"
+    fname = basepath + "bomm1_per1/level2/bomm1_per1_level2_30min.nc"
+    t_ini = dt.datetime(2018, 11,  9)
+    t_end = dt.datetime(2018, 11, 15)
+    s = PlotSpectra(fname, t_ini, t_end)
     s.animate()
-    s.plot_drag_coefficient()
 

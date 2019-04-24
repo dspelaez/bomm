@@ -32,7 +32,7 @@ basepath = "/Volumes/Boyas/bomm_database/data/"
 bomm_name = "bomm3_its"
 
 # t_ini = dt.datetime(2018, 8, 13, 18, 0)
-t_ini = dt.datetime(2018,  9, 23, 22,  0)
+t_ini = dt.datetime(2018,  9, 23, 21,  0)
 t_fin = dt.datetime(2018, 11, 12,  7, 20)
 
 
