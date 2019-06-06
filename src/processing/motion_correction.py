@@ -195,7 +195,7 @@ def vector_rotation(U, E, units="rad"):
     else:
         raise ValueError("units must be either def or rad")
 
-    # check validity of angles
+    # TODO: check validity of angles
     # phi and psi must be between -pi and pi
     # theta musr be between -pi/2 and  pi/2
 
@@ -225,39 +225,6 @@ def vector_rotation(U, E, units="rad"):
 
 # }}}
 
-# angles_to_quaternions {{{
-def angles_to_quaternions(T):
-    """Returns the quaterions associatted with the angles T=(phi,theta,psi)."""
-
-    # unpack tuples
-    phi, theta, psi = T
-
-    # compute sins and cosines
-    c_phi, c_theta, c_psi = np.cos(phi), np.cos(theta), np.cos(psi)
-    s_phi, s_theta, s_psi = np.sin(phi), np.sin(theta), np.sin(psi)
-
-    # compute quaternions components
-    q0 = 0.5*np.sqrt(1 + c_theta*s_psi + s_phi*s_theta*s_psi + \
-            c_theta*c_psi + c_phi*c_theta)
-    q1 = (s_phi*c_theta - c_phi*s_theta*s_psi + s_phi*c_psi) / (4*q0)
-    q2 = (c_phi*s_theta*c_psi + s_phi*s_psi + s_theta) / (4*q0)
-    q3 = (c_theta*s_psi - s_phi*s_theta*c_psi + c_phi*s_psi) / (4*q0)
-
-    return (q1, q2, q3, q4)
-
-# }}}
-
-# split into flow, waves and turbulent part {{{
-def split_into_three(data, fs=100, fc=(0.04,2)):
-    """Split a signal into flow, waves and turbulent parts."""
-
-    data_flow = bomm.butterworth_filter(data, fs, fc[0], kind="low")
-    data_turb = bomm.butterworth_filter(data, fs, fc[1], kind="high")
-    data_wave = bomm.butterworth_filter(data, fs, fc[0], kind="high") - data_turb
-
-    return data_flow, data_wave, data_turb
-# }}}
-
 # get an array of a regular distribution of wavestaffs {{{
 def wavestaff_coordinates(N, R=0.866, theta_0=-270):
     """This function returns position a regular array
@@ -283,16 +250,118 @@ def wavestaff_coordinates(N, R=0.866, theta_0=-270):
 # }}}
 
 
+# --- quaternions ---
+# euler_to_quaternions {{{
+def euler_to_quaternions(T):
+    """Returns the quaterions associatted with the angles T=(phi,theta,psi)."""
+
+    # unpack tuples
+    phi, theta, psi = T
+
+    # compute sins and cosines
+    c_phi, c_theta, c_psi = np.cos(phi/2), np.cos(theta/2), np.cos(psi/2)
+    s_phi, s_theta, s_psi = np.sin(phi/2), np.sin(theta/2), np.sin(psi/2)
+
+    # compute quaternions components
+    # q0 = 0.5*np.sqrt(1 + c_theta*s_psi + s_phi*s_theta*s_psi + \
+            # c_phi*c_psi + c_phi*c_theta)
+    # #
+    # q1 = (s_phi*c_theta - c_phi*s_theta*s_psi + s_phi*c_psi) / (4*q0)
+    # #
+    # q2 = (c_phi*s_theta*c_psi + s_phi*s_psi + s_theta) / (4*q0)
+    # #
+    # q3 = (c_theta*s_psi - s_phi*s_theta*c_psi + c_phi*s_psi) / (4*q0)
+
+    q0 = c_phi * c_theta * c_psi + s_phi * s_theta * s_psi
+    q1 = s_phi * c_theta * c_psi - c_phi * s_theta * s_psi
+    q2 = c_phi * s_theta * c_psi + s_phi * c_theta * s_psi
+    q3 = c_phi * c_theta * s_psi - s_phi * s_theta * c_psi
+
+    return (q0, q1, q2, q3)
+
+# }}}
+
+# quaternion_product {{{
+def quaternion_product(q, p):
+    """Returns the quaterion porduct o p=(p0,p1,p2,p3) and q=(q0,q1,q2,q3)"""
+
+    # unpack tuples
+    q0, q1, q2, q3 = q
+    p0, p1, p2, p3 = p
+
+    r0 = p0*q0 - p1*q1 - p2*q2 - p3*q3
+    r1 = p0*q1 + p1*q0 + p2*q3 - p3*q2
+    r2 = p0*q2 - p1*q3 + p2*q0 + p3*q1
+    r3 = p0*q3 + p1*q2 - p2*q1 + p3*q0
+
+    return (r0, r1, r2, r3)
+
+# }}}
+
+# quaternion_conjugate {{{
+def quaternion_conjugate(q):
+    """Returns the quaterion conjugate"""
+    q0, q1, q2, q3 = q
+    return (q0, -q1, -q2, -q3)
+# }}}
+
+# quaternion_inverse {{{
+def quaternion_inverse(q):
+    """Returns the quaterion conjugate"""
+
+    norm = quaternion_norm(q)
+    q_conj = quaternion_conjugate(q)
+
+    return (q_conj[0]/norm, q_conj[1]/norm, q_conj[2]/norm, q_conj[3]/norm)
+# }}}
+
+# quaternion_norm {{{
+def quaternion_norm(q):
+    """Returns the quaterion conjugate"""
+    q0, q1, q2, q3 = q
+    return q0**2 + q1**2 + q2**2 + q3**2
+# }}}
+
+# quaternion_theta {{{
+def quaternion_theta(q):
+    """Returns the angle for the axis angle representation"""
+    q0, q1, q2, q3 = q
+    return 2 * np.arctan2(np.sqrt( q1**2 + q2**2 + q3**2), q0)
+# }}}
+
+# quaternion_rotation {{{
+def quaternion_rotation(v, q, mode="frame"):
+    """Returns the vector v rotated into the quaternion q"""
+
+    p = (0, v[0], v[1], v[2])
+    qinv = quaternion_inverse(q)
+    if mode=="frame":
+        r = quaternion_product(q, quaternion_product(p, qinv)) #qpq*
+    elif mode=="point":
+        r = quaternion_product(qinv, quaternion_product(p, q)) #q*pq
+    else:
+        raise Exception("Mode must be `frame` or `point`")
+    
+    return r[1:]
+# }}}
+
+
 # --- compute yaw, pitch and roll ---
 # compute tilt from accelerations {{{
 def tilt_from_accerometer(ax, ay, az):
     """Compute the inclination from the acceleromter signal as complex number."""
 
     # using the SBG rotation matrix and arctan
-    phi = np.arctan(ay / az)
-    theta = np.arctan(-ax / (ay*np.sin(phi) + az*np.cos(phi)))
+    phi = np.arctan2(ay, np.sqrt(ax**2 + az**2))
+    theta = np.arctan2(-ax, np.sqrt(ay**2 + az**2))
+    # alternatives with some slightlty differeces
+    # phi = np.arctan(ay / az)
+    # theta = np.arctan(-ax / (ay*np.sin(phi) + az*np.cos(phi)))
+    # phi = np.arctan2(ay, az)
+    # theta = np.arctan2(-ax, az)
 
     return phi, theta
+
 # }}}
 
 # compute pitch and roll using a complementary_filter {{{
@@ -432,9 +501,9 @@ def position_correction(X, A, E, fs=20, fc=1/25, q=5, full=False):
 
     # compute sines and cosines
     roll, pitch, yaw = E_down
-    cp, sp = np.cos(pitch), np.sin(pitch)
-    cr, sr = np.cos(roll),  np.sin(roll)
-    cy, sy = np.cos(yaw), np.sin(yaw)
+    # cp, sp = np.cos(pitch), np.sin(pitch)
+    # cr, sr = np.cos(roll),  np.sin(roll)
+    # cy, sy = np.cos(yaw), np.sin(yaw)
 
     # convert observations into the inertial frame
     x_obs, y_obs, z_obs = vector_rotation(X, (roll, pitch, yaw))
@@ -527,9 +596,9 @@ def velocity_correction(U, A, E, L=(0,0,0), fs=100, fc=1/25, full=False):
     #   pitch --> p --> theta --> E[1]
     #   yaw   --> y --> psi   --> E[2]
     roll, pitch, yaw = E
-    cp, sp = np.cos(pitch), np.sin(pitch)
-    cr, sr = np.cos(roll),  np.sin(roll)
-    cy, sy = np.cos(yaw), np.sin(yaw)
+    # cp, sp = np.cos(pitch), np.sin(pitch)
+    # cr, sr = np.cos(roll),  np.sin(roll)
+    # cy, sy = np.cos(yaw), np.sin(yaw)
 
     # convert observations into the inertial frame
     u_obs, v_obs, w_obs = vector_rotation(U, (roll, pitch, yaw))
@@ -540,9 +609,9 @@ def velocity_correction(U, A, E, L=(0,0,0), fs=100, fc=1/25, full=False):
     # correction due to rotation
     Lx, Ly, Lz = L
     droll, dpitch, dyaw = D
-    curl = (fft_integration( dpitch*Lz -   dyaw*Ly, fs, fc, order=-1),
-            fft_integration(-dpitch*Lz +   dyaw*Lx, fs, fc, order=-1),
-            fft_integration(  droll*Ly - dpitch*Lx, fs, fc, order=-1))
+    curl = (fft_integration( dpitch*Lz -   dyaw*Ly, fs, fc=0, order=-1),
+            fft_integration(-dpitch*Lz +   dyaw*Lx, fs, fc=0, order=-1),
+            fft_integration(  droll*Ly - dpitch*Lx, fs, fc=0, order=-1))
     u_rot, v_rot, w_rot = vector_rotation(curl, (roll, pitch, yaw))
 
     # compute earth-based water position

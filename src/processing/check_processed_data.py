@@ -37,11 +37,11 @@ def load_data(p):
     Ua, Va = p.r["Ua"], p.r["Va"]
 
     # yaw and maximet data
-    yaw = p.r['heading']
+    yaw = p.r['yaw']
     Wspd, tWdir = p.r["U10N"], (270 - p.r["tWdir"]) % 360
 
     # do some conversions
-    Uy, Vy = np.cos(yaw*np.pi/180), np.sin(yaw*np.pi/180)
+    Uy, Vy = np.cos((yaw+90)*np.pi/180), np.sin((yaw+90)*np.pi/180)
     Um, Vm = (Wspd * np.cos(tWdir * np.pi/180),
               Wspd * np.sin(tWdir * np.pi/180))
 
@@ -213,7 +213,7 @@ def bomm_animation(p):
     """This function perform an animation of the moving wavestaffs array."""
 
     # load wavestaff position after correction
-    xx, yy = wdm.reg_array(N=5, R=0.866, theta_0=180)
+    xx, yy = wdm.reg_array(N=5, R=0.866, theta_0=90)
     #
     # get the sampling frequency and the resampling factor
     fs = p.metadata["sensors"]["wstaff"]["sampling_frequency"]
@@ -225,13 +225,13 @@ def bomm_animation(p):
     for i, (x, y), in enumerate(zip(xx, yy)):
         z = p.wav[f"ws{i+1}"] * 3.5/4095 + 4.45
         X[:,i], Y[:,i], Z[:,i] = motcor.position_correction((x,y,z),
-                p.Acc, p.Eul, fs=fs, fc=0.04, q=q)
+                p.Acc, p.Eul, fs=fs, fc=0.08, q=q)
 
     # load components of the bomm orientation
     wfrq, dirs, E, Ua, Va, yaw, Wspd, tWdir, xUy, xVy, Um, Vm = load_data(p)
 
     # load time varying yaw
-    Uy, Vy = np.cos(p.Eul[2]), np.sin(p.Eul[2])
+    Uy, Vy = np.cos(p.Eul[2]+np.pi/2), np.sin(p.Eul[2]+np.pi/2)
 
     # time series
     t = p.wav["time"] - p.wav["time"][0]
@@ -297,11 +297,11 @@ if __name__ == "__main__":
 
     path = "../.."
     #
-    date =  dt.datetime(2018, 7, 24, 17)
+    date = dt.datetime(2018,9,12,13,0)
     metafile = f"{path}/metadata/bomm1_per1.yml" 
     fig, ax = plot_wave_spectra(metafile, date)
-    figname = f"{path}/reports/figures/bomm1_per1_{date.strftime('%Y%m%d%H')}.png"
-    fig. savefig(figname, dpi=600)
+    # figname = f"{path}/reports/figures/bomm1_per1_{date.strftime('%Y%m%d%H')}.png"
+    # fig. savefig(figname, dpi=600)
     
     # date = dt.datetime(2018,4,7,13)
     # metafile = "../../metadata/bomm2_its.yml" 

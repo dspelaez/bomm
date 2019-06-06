@@ -22,8 +22,8 @@ import gsw
 import sys
 import os
 #
-import wdm
-import motion_correction as motcor
+import src.processing.wdm as wdm
+import src.processing.motion_correction as motcor
 #
 
 
@@ -163,6 +163,20 @@ def stokes_drift(f, S, z=-np.logspace(-5,2,50)):
 
 # }}}
 
+# remove outliers {{{
+def remove_outliers(x):
+    """Recursively remove outliers from a give signal"""
+
+    # compute mean and standar deviation
+    xmean, xstd = nanmean(x), np.nanstd(x)
+
+    # first remove values lying 5 time std
+    x_clean = x.copy()
+    x_clean[abs(x - xmean) > 5*xstd] = np.nan
+
+    return x_clean
+# }}}
+
 # eddy correlation method {{{
 def eddy_correlation_flux(U, V, W, T):
     """Computes momentum and heat fluxes from corrected velocity components.
@@ -181,36 +195,32 @@ def eddy_correlation_flux(U, V, W, T):
     for v in (U, V, W, T):
         nans = np.isnan(v)
         if len(nans.nonzero()[0]) / len(v) < 0.1:
-            v[nans] = 0
+            v[nans] = nanmean(v)
         else:
             raise Exception("More than 10% of invalid data")
 
+    # perform a decimate and remove outliers
+
     # align with max variability axis (average V = 0)
-    theta = np.arctan2(np.nanmean(V), np.nanmean(U)) #<- from U to V counterclockwise
+    theta = np.arctan2(nanmean(V), nanmean(U)) #<- from U to V counterclockwise
     U_stream =  U*np.cos(theta) + V*np.sin(theta)
     V_stream = -U*np.sin(theta) + V*np.cos(theta)
 
     # align with the flow to do mean W equals zero
-    phi = np.arctan2(np.nanmean(W), np.nanmean(U_stream)) #<- from U to W counterclockwise
+    phi = np.arctan2(nanmean(W), nanmean(U_stream)) #<- from U to W counterclockwise
     U_proj =  U_stream*np.cos(phi) + W*np.sin(phi)
     V_proj =  V_stream.copy()
     W_proj = -U_stream*np.sin(phi) + W*np.cos(phi)
 
-    def flux(x, y, method="classic"):
-        if method == "cospectrum":
-            f, Cuw = signal.csd(x, y, fs=100, nperseg=len(x))
-            ix = np.logical_and(f>1/25, f<5)
-            return np.trapz(Cuw[ix].real, f[ix])
-        elif method == "classic":
-            return nanmean(x * y)
-        else:
-            raise ValueError("Method must be `classic` or `cospectrum`")
+    def flux(x, y):
+        window = np.ones(10) / 10
+        xf = np.convolve(window, remove_outliers(x), "same")
+        yf = np.convolve(window, remove_outliers(y), "same")
+        return nanmean((xf-nanmean(xf)) * (yf-nanmean(yf)))
 
     # compute turbulent fluxes
-    method = "classic"
-    d = lambda x: x-nanmean(x)
-    u, v, w, T = d(U_proj), d(V_proj), d(W_proj), d(T)
-    uw, vw, wT = flux(u, w, method), flux(v, w, method), flux(w, T, method)
+    u, v, w, T = U_proj, V_proj, W_proj, T
+    uw, vw, wT = flux(u, w), flux(v, w), flux(w, T)
     
 
     return uw, vw, wT
@@ -361,6 +371,9 @@ def wind_speed_neutral(zL, U, ustar, height=6.5):
     Psi[ix_unst] = (1 + 15.2 * np.abs(zL[ix_unst]))**-0.25
     Psi[ix_stab] = 1 + 4.8*zL[ix_stab]
 
+    # force to be valid between -10 < zL < 10
+    Psi[abs(zL) > 10] = np.nan
+
     # compute wind speed for neutral conditions
     kappa = 0.4
     UzN = U + (ustar / kappa) * Psi
@@ -450,7 +463,7 @@ def get_netcdf_data(grp, date, number_of_minutes=30):
     if isinstance(fs, str):
         fs = eval(grp.sampling_frequency)
 
-    # assure the a sampling frequency of at least 10 minutes
+    # assure the sampling frequency of at least 10 minutes
     fsmin = 1./600.
     if fs < fsmin:
         number_of_minutes = 30 # minimum sampling rate
@@ -598,7 +611,8 @@ class ProcessingData(object):
 
     _list_of_dictionaries = "ekx wnd gps mvi met pro rbr sig vec wav".split()
     __slots__ = "metadata list_of_variables r Acc Gyr Eul".split() +\
-                 _list_of_dictionaries + ["number_of_minutes"]
+                 _list_of_dictionaries + ["number_of_minutes"] + \
+                 ["U_unc", "U_rot", "U_cor", "X", "Y", "Z"]
 
     # private methods {{{
     def __init__(self, metafile, number_of_minutes=30):
@@ -704,9 +718,10 @@ class ProcessingData(object):
         true_wnd, rel_wnd = self.met["true_wind_dir"], self.met["relative_wind_dir"]
         heading_met = (true_wnd - rel_wnd + maximet_angle) % 360
 
+        # TODO:
         # the low frequency heading means the angle between new BOMM y-axis and
         # true north. Magnetic deviation is taken from GPS measurements. All in
-        # degrees, The mag deviation or declination is added to the current
+        # degrees, the mag deviation or declination is added to the current
         # magnetic mesurement ---> (check this, im not pretty sure)
         if np.isnan(heading_sig.filled(np.nan)).all():
             heading = heading_met - self.gps["mag_var"][0] * 0
@@ -743,7 +758,7 @@ class ProcessingData(object):
 
         # integrate accel and gyro to obtain euler angles
         phi, theta = motcor.pitch_and_roll(*self.Acc, *self.Gyr,
-                fs=100, fc=0.04, fm=1)
+                fs=100, fc=0.04, fm=0.04)
         #
         # compute bomm heading and the merge with ekinox
         heading = np.radians((90 - self.compute_heading()) % 360)
@@ -758,12 +773,12 @@ class ProcessingData(object):
         # finally save the mean euler angles in the results dictionary
         self.r["roll"] = nanmean(self.Eul[0]*180/np.pi, isangle=True)
         self.r["pitch"] = nanmean(self.Eul[1]*180/np.pi, isangle=True)
-        self.r["heading"] = nanmean(self.Eul[2]*180/np.pi, isangle=True)
+        self.r["yaw"] =  nanmean(self.Eul[2]*180/np.pi, isangle=True)
         #
         list_of_variables = {
                 "roll"    : "average_roll_angle",
                 "pitch"   : "average_pitch_angle",
-                "heading" : "average_heading_angle"
+                "yaw"     : "average_yaw_angle"
                 }
         self.list_of_variables = {**self.list_of_variables, **list_of_variables}
 
@@ -887,7 +902,7 @@ class ProcessingData(object):
         # TODO: since offset depends on each bomm, they should be passed
         #       as an input argument.
         x_offset, y_offset, z_offset = -0.339, 0.413, 4.45
-        xx, yy = wdm.reg_array(N=5, R=0.866, theta_0=180)
+        xx, yy = wdm.reg_array(N=5, R=0.866, theta_0=90)
         # xx, yy = xx + x_offset, yy + y_offset
 
         # get the sampling frequency and the resampling factor
@@ -914,6 +929,9 @@ class ProcessingData(object):
             # discard the blocks containing nan data.
             ffrq, S[:,i] = welch(Z[:,i], fs=fs, nfft=nfft, overlap=int(nfft/4))
 
+        # save wavestaff position for later
+        self.X, self.Y, self.Z = X, Y, Z
+
         # limit to the half of the nfft to remove high frequency noise
         S = np.mean(S[1:int(nfft/4)+1,valid_wires_index], axis=1)
         ffrq = ffrq[1:int(nfft/4)+1]
@@ -922,7 +940,7 @@ class ProcessingData(object):
         # TODO: create a anti-aliasing filter to decimate the time series
         dfac = 2
         d = lambda x: x[::dfac,1:]
-        wfrq, dirs, E, D = wdm.fdir_spectrum(d(Z), d(X), d(Y), fs=int(fs/dfac),
+        wfrq, dirs, E, D = wdm.fdir_spectrum(d(Z), d(Y), d(X), fs=int(fs/dfac),
                 limit=np.pi, omin=-5, omax=1, nvoice=16, ws=(30, 4))
         
         # compute bulk wave parameters and stokes drift magnitude
@@ -965,12 +983,17 @@ class ProcessingData(object):
         #       matadata yaml file.
         L = (0.339, -0.413, 13.01)
         # L = (0, 0, 13.01)
-        sonic_angle = self.metadata["sensors"]["sonic"]["sonic_angle"]
+        sonic_angle = self.metadata["sensors"]["sonic"]["sonic_angle"] + 90
         sonic_height = self.metadata["sensors"]["sonic"]["sonic_height"]
         #
         U_unc = (self.wnd["u_wind"], self.wnd["v_wind"], self.wnd["w_wind"])
         U_rot = motcor.vector_rotation(U_unc, (0,0,sonic_angle), units="deg")
         U_cor = motcor.velocity_correction(U_rot, self.Acc, self.Eul, L, fs=100, fc=0.08)
+
+        # save corrected and uncorrected for later
+        self.U_unc = U_unc
+        self.U_rot = U_rot
+        self.U_cor = U_cor
 
         # compute momentum fluxes
         T = self.wnd["sonic_temp"] + 273.15 # <--- convert to Kelvin

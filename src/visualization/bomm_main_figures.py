@@ -291,7 +291,7 @@ def plot_drag_coefficient(dataset, i , j):
     U10N = despike(dataset["U10N"][i:j].data)
 
     # remove outliers
-    ustar[ustar > 0.8] = np.nan
+    ustar[ustar > 1] = np.nan
     
     # remove nans
     ix = np.logical_or(np.isnan(ustar), np.isnan(U10N))
