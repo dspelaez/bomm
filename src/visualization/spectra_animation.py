@@ -22,12 +22,15 @@ import datetime as dt
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import matplotlib.dates as mdates
+import matplotlib.colors as mcolors
 import locale
 import os
 #
+from matplotlib.colors import LogNorm, LinearSegmentedColormap
+#
 # import wdm
 import src.processing.motion_correction as motcor
-from src.processing.wdm.spectra import polar_spectrum
+from src.processing.wdm.spectra import polar_spectrum, colorax
 from src.processing.processing_data import (
         ProcessingData, eddy_correlation_flux, nanmean, stokes_drift
         )
@@ -86,7 +89,7 @@ class PlotSpectra(object):
         self.ustar = dataset["ustar"][i:j]
         
         # yaw and maximet data
-        self.yaw = dataset['heading'][i:j]
+        self.yaw = dataset['yaw'][i:j]
         self.Wspd = dataset["U10N"][i:j]
         self.tWdir = (270 - dataset["tWdir"][i:j]) % 360
         self.aWdir = np.arctan2(self.Va, self.Ua) * 180/np.pi
@@ -103,8 +106,8 @@ class PlotSpectra(object):
         self.zL = dataset["zL"][i:j]
 
         # do some conversions
-        self.Uy = np.cos(self.yaw*np.pi/180)
-        self.Vy = np.sin(self.yaw*np.pi/180)
+        self.Uy = np.cos((self.yaw + 90) * np.pi/180)
+        self.Vy = np.sin((self.yaw + 90) * np.pi/180)
         self.Um = self.Wspd * np.cos(self.tWdir * np.pi/180)
         self.Vm = self.Wspd * np.sin(self.tWdir * np.pi/180)
 
@@ -140,6 +143,9 @@ class PlotSpectra(object):
         self.u_wind = self.remove_outliers(self.p.U_cor[0])
         self.v_wind = self.remove_outliers(self.p.U_cor[1])
         self.w_wind = self.remove_outliers(self.p.U_cor[2])
+        #
+        self.t_wave = np.arange(0, len(self.p.wav["time"])) / 60 / 20
+        self.Z = self.p.Z
 
     
     def set_limits(self, x, ax):
@@ -170,10 +176,15 @@ class PlotSpectra(object):
                 label=True, smin=-3., smax=2, fmax=0.5, ax=ax, cbar=True)
         #
         # plot_arrows
-        ax.quiver(0, 0, self.Ua[i], self.Va[i], scale=30, color="blue")
-        ax.quiver(0, 0, self.Tx[i], self.Ty[i], scale=0.5, color="darkblue")
-        ax.quiver(0, 0, self.Uy[i], self.Vy[i], scale=1, color="gold")
-        ax.quiver(0, 0, self.Us[i], self.Vs[i], scale=0.3, color="darkred")
+        qva = ax.quiver(0, 0, self.Ua[i], self.Va[i], scale=30, color="steelblue")
+        qvt = ax.quiver(0, 0, self.Tx[i], self.Ty[i], scale=0.5, color="darkblue")
+        qvs = ax.quiver(0, 0, self.Us[i], self.Vs[i], scale=0.3, color="darkred")
+        qvy = ax.quiver(0, 0, self.Uy[i], self.Vy[i], scale=1, color="gold", headwidth=0)
+
+        ax.quiverkey(qva, 0.10, -0.08, 5.00, label="$U_{10} = 5\,\mathrm{m/s}$")
+        ax.quiverkey(qvs, 0.38, -0.08, 0.05, label="$U_s = 5\,\mathrm{cm/s}$")
+        ax.quiverkey(qvt, 0.66, -0.08, 0.10, label="$\\tau = 0.1\,\mathrm{N/m^2}$")
+        ax.quiverkey(qvy, 0.94, -0.08, 0.20, label="$\psi$")
 
         # plot wind-sea / swell delimiter
         wdirs = np.radians((self.dirs - self.tWdir[i]))
@@ -187,7 +198,7 @@ class PlotSpectra(object):
         # - add Ustar and Ustokes
 
         # # set wind label
-        ulabel = f"$u_{{10}} = {self.Wspd[i]:.2f}$ m/s\n" + \
+        ulabel = f"$U_{{10}} = {self.Wspd[i]:.2f}$ m/s\n" + \
                 f"$\\theta_{{u}} = {self.tWdir[i]:.2f}^\circ$"
         ax.text(0.01, 0.98, ulabel, transform=ax.transAxes, ha="left", va="top")
         
@@ -203,31 +214,32 @@ class PlotSpectra(object):
         """Start the figure and plot permanent data"""
 
         # create canvas
-        fig = plt.figure(figsize=(10,7))
+        fig = plt.figure(figsize=(10,8))
         #
-        ax0 = fig.add_axes([0.05, 0.40, 0.42, 0.55])
-        ax1 = fig.add_axes([0.55, 0.78, 0.40, 0.17])
-        ax2 = fig.add_axes([0.55, 0.59, 0.40, 0.17])
-        ax3 = fig.add_axes([0.55, 0.40, 0.40, 0.17])
+        ax0 = fig.add_axes([0.05, 0.50, 0.42, 0.45])
+        ax1 = fig.add_axes([0.55, 0.82, 0.40, 0.13])
+        ax2 = fig.add_axes([0.55, 0.66, 0.40, 0.13])
+        ax3 = fig.add_axes([0.55, 0.50, 0.40, 0.13])
         #
-        bx1 = fig.add_axes([0.05, 0.23, 0.90, 0.10])
-        bx2 = fig.add_axes([0.05, 0.13, 0.90, 0.10])
-        bx3 = fig.add_axes([0.05, 0.03, 0.90, 0.10])
+        bx1 = fig.add_axes([0.05, 0.33, 0.90, 0.10])
+        bx2 = fig.add_axes([0.05, 0.23, 0.90, 0.10])
+        bx3 = fig.add_axes([0.05, 0.13, 0.90, 0.10])
+        #
+        cx0 = fig.add_axes([0.05, 0.03, 0.90, 0.10])
 
-        # fig.subplots_adjust(top=.95, bottom=.1, left=.06, right=.93, wspace=.2, hspace=.2)
 
         ax1.set_title(self.title)
-        ax1.plot(self.time, self.Hs, c="k")
-        ax2.plot(self.time, self.Tp, c="k")
-        ax3.plot(self.time, self.Wspd, c="k")
+        ax1.plot(self.time, self.Wspd, c="k")
+        ax2.plot(self.time, self.Hs,   c="k")
+        ax3.plot(self.time, self.Tp,   c="k")
         #
-        ax1.set_ylabel("$H_{m0}\,\mathrm{[m]}$")
-        ax2.set_ylabel("$T_{p}\,\mathrm{[m]}$")
-        ax3.set_ylabel("$U_{10}\,\mathrm{[m]}$")
+        ax1.set_ylabel("$U_{10}\,\mathrm{[m/s]}$")
+        ax2.set_ylabel("$H_{m0}\,\mathrm{[m]}$")
+        ax3.set_ylabel("$T_{p}\,\mathrm{[s]}$")
         #
-        self.set_limits(self.Hs, ax1)
-        self.set_limits(self.Tp, ax2)
-        self.set_limits(self.Wspd, ax3)
+        self.set_limits(self.Wspd, ax1)
+        self.set_limits(self.Hs, ax2)
+        self.set_limits(self.Tp, ax3)
         #
         for ax in (ax1, ax2, ax3):
             ax.yaxis.tick_right()
@@ -242,27 +254,48 @@ class PlotSpectra(object):
         ax1.set_xticklabels([''])
         ax2.set_xticklabels([''])
         # 
-        # ax3.set_xlabel(f"Hours since {self.time[0].strftime('%Y/%m/%d')}")
-        #
-        self.plot_wave_spectrum(i, ax0)
-        point1, = ax1.plot(self.time[i], self.Hs[i], "oy", ms=3)
-        point2, = ax2.plot(self.time[i], self.Tp[i], "oy", ms=3)
-        point3, = ax3.plot(self.time[i], self.Wspd[i], "oy", ms=3)
-
         # plot high frequency data
         try:
             self.get_high_frequency_data(i)
+
+            # ==== TEMPORAL HACK =====
+            # REPLACE NETCDF E BY s.pE
+            # ========================
+            self.E[i,:,:] = self.p.r["E"]
             # 
             bx1.plot(self.t_wind, self.u_wind, color="0.9")
             bx2.plot(self.t_wind, self.v_wind, color="0.9")
             bx3.plot(self.t_wind, self.w_wind, color="0.9")
+            # bx1.set_ylim((-20,20))
+            # bx2.set_ylim((-20,20))
+            # bx3.set_ylim((-5,5))
             #
             n_smooth = 200
             bx1.plot(self.t_wind[::n_smooth], self.u_wind[::n_smooth])
             bx2.plot(self.t_wind[::n_smooth], self.v_wind[::n_smooth])
             bx3.plot(self.t_wind[::n_smooth], self.w_wind[::n_smooth])
+            #
+            bx1.set_ylabel("$u\,\mathrm{[m/s]}$")
+            bx2.set_ylabel("$v\,\mathrm{[m/s]}$")
+            bx3.set_ylabel("$w\,\mathrm{[m/s]}$")
+            #
+            cx0.plot(self.t_wave, self.Z[:,self.p.valid_wires_index])
+            cx0.legend(self.p.valid_wires, loc=0, ncol=6)
+            cx0.set_ylabel("$\\eta\,\mathrm{[m]}$")
+            # cx0.set_ylim((-2,2))
+            #
+            for ax in (bx1, bx2, bx3, cx0):
+                ax.yaxis.set_label_position("right")
+
         except:
             pass
+
+        # plot wave spectrum
+        self.plot_wave_spectrum(i, ax0)
+        point1, = ax1.plot(self.time[i], self.Wspd[i], "oy", ms=3)
+        point2, = ax2.plot(self.time[i], self.Hs[i], "oy", ms=3)
+        point3, = ax3.plot(self.time[i], self.Tp[i], "oy", ms=3)
+
 
         return fig, ax0, ax1, ax2, ax3
 
@@ -285,30 +318,139 @@ class PlotSpectra(object):
         # ffmpeg -i movie.gif -movflags faststart -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" movie.mp4
         # ffmpeg -y -framerate 2 -pattern_type glob -i '*.png' -movflags faststart -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" movie.mp4
 
+
+    def time_directional_spectrum(self, fname=None):
+        """Nice way to visualize the time-varying directional wave spectrum"""
+
+        # determine number of time
+        ntime = len(self.time)
+        step = np.max((1, int(ntime/50)))
+
+        # compute energy components
+        dirr = np.radians(self.dirs)
+        S = np.trapz(self.E, x=dirr, axis=1).T
+        Ex = np.trapz(np.cos(dirr[None,:,None]) * self.E, x=dirr, axis=1).T / S
+        Ey = np.trapz(np.sin(dirr[None,:,None]) * self.E, x=dirr, axis=1).T / S
+
+        # remove some elements
+        ix_remove = np.logical_or(self.wfrq < 0.06, self.wfrq > 0.8)
+        Ex[ix_remove] = np.nan
+        Ey[ix_remove] = np.nan
+
+        # create colormap
+        smin, smax = -3, 1
+        colors = ["#FFFFFF", "#01DFA5", "#FE642E", "#08298A", "#01A9DB"]
+        cmap = mcolors.LinearSegmentedColormap.from_list('cmap', colors, N=1024)
+        norm = mcolors.LogNorm(vmin=10**smin, vmax=10**smax)
+
+        # do plot spectrum
+        fig, ax = plt.subplots(1, figsize=(7,4))
+        ax.set_title(self.title)
+        #
+        ax.plot(s.time, 1/self.Tp, ".", ms=3, color="0.5", alpha=0.5)
+        pc = ax.pcolormesh(self.time, self.wfrq, S, cmap=cmap, norm=norm)
+        qv = ax.quiver(self.time[::step], self.wfrq[::4], Ex[::4,::step], Ey[::4,::step],
+                scale=50, angles="uv", color="black")
+
+        # plot wind at 0.9 freq
+        qw = ax.quiver(self.time[::step], 0.85, self.Ua[::step], self.Va[::step],
+                scale=200, width=0.004, headwidth=2.5, angles="uv", color="blue")
+        ax.quiverkey(qw, 0.80, 1.02, 10, label="$U_{10} = 10\,\mathrm{m/s}$",
+                labelpos="E")
+
+        # colorbar
+        fig.colorbar(pc, ax=ax, cax=colorax(ax))#, ticks=10**np.arange(smin, smax+1))
+
+        # tweak the axes
+        ax.set_xlim((self.time[0], self.time[-1]+dt.timedelta(minutes=30)))
+        ax.set_ylim((0.05, 0.95))
+        ax.set_ylabel("$f\,\mathrm{[Hz]}$")
+        #
+        ax.xaxis.set_minor_locator(mdates.HourLocator(range(0,24,3)))
+        ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d\n%Y"))
+
+        if fname:
+            fig.savefig(fname, dpi=600)
+
+        return fig, ax
+
+
 # }}}
 
 
 if __name__ == "__main__":
 
+    # case when we have a cold front observed by a sar image
+    if True:
+        t_ini = dt.datetime(2018, 9, 11)
+        t_end = dt.datetime(2018, 9, 16)
+        s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end, 30)
+        s.animate()
+        s.time_directional_spectrum("./events/spectra_event_1.png")
+
     # define initial and final time (no more than 3 or 4 days)
-    t_ini = dt.datetime(2018, 10, 15)
-    t_end = dt.datetime(2018, 10, 18)
-    s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end, 30)
-    s.animate()
+    if True:
+        t_ini = dt.datetime(2018, 10, 15)
+        t_end = dt.datetime(2018, 10, 20)
+        s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end, 30)
+        s.animate()
+        s.time_directional_spectrum("./events/spectra_event_2.png")
 
-    # case when minium Hs
-    # t_ini = dt.datetime(2018, 9, 17, 12, 0)
-    # t_end = dt.datetime(2018, 9, 21, 12, 0)
-    # s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end)
-    # s.animate()
+    # case when we observed cross-winds and slanting fecth
+    if True:
+        t_ini = dt.datetime(2018, 11, 9)
+        t_end = dt.datetime(2018, 11, 16)
+        s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end, 30)
+        s.animate()
+        s.time_directional_spectrum("./events/spectra_event_3.png")
 
+    # plot specific date only
     if False:
-        t_ini = dt.datetime(2018, 1, 17)
-        t_end = dt.datetime(2018, 1, 19)
+        date = dt.datetime(2017, 12, 8, 14, 0)
+        t_ini = date - dt.timedelta(days=1)
+        t_end = date + dt.timedelta(days=1)
         s = PlotSpectra("../../metadata/bomm1_its.yml", t_ini, t_end, 10)
-        s.animate()
+        i = np.argmin(abs(s.time - date))
+        s.make_plot(i)
 
-        t_ini = dt.datetime(2018, 1, 30)
-        t_end = dt.datetime(2018, 1, 31)
-        s = PlotSpectra("../../metadata/bomm1_its.yml", t_ini, t_end, 10)
-        s.animate()
+    # terrasar x
+    if True:
+        
+        dates_tsx = [
+                '20180713T122722', '20180714T003126', '20180720T000255',
+                '20180822T002322', '20180917T122725', '20180928T122726',
+                '20181016T002302', '20181020T122727', '20181021T003133',
+                '20181112T003131', '20181118T002259'
+                ]
+
+        for strdate in dates_tsx:
+            date = dt.datetime.strptime(strdate, "%Y%m%dT%H%M%S")
+            t_ini = date - dt.timedelta(days=1)
+            t_end = date + dt.timedelta(days=1)
+            s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end, 30)
+            i = np.argmin(abs(s.time - date))
+            fig, *ax = s.make_plot(i)
+            fig.savefig(f"./terrasarx/{strdate}_30min.png", dpi=300)
+            plt.close(fig)
+
+    # sentinel
+    if True:
+
+        dates_snt = [
+                '20180712T003311', '20180805T003313', '20180807T122429',
+                '20180817T003314', '20180819T122429', '20180831T122430',
+                '20180910T003315', '20180912T122430', '20181023T002513',
+                '20181109T003315', '20181111T122431', '20181203T003315',
+                '20181205T122430'
+                ]
+
+        for strdate in dates_snt:
+            date = dt.datetime.strptime(strdate, "%Y%m%dT%H%M%S")
+            t_ini = date - dt.timedelta(days=1)
+            t_end = date + dt.timedelta(days=1)
+            s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end, 30)
+            i = np.argmin(abs(s.time - date))
+            fig, *ax = s.make_plot(i)
+            fig.savefig(f"./sentinel/{strdate}_30min.png", dpi=300)
+            plt.close(fig)

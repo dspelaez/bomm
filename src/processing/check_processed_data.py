@@ -87,16 +87,23 @@ def plot_wave_spectra(metafile, date):
         dirr = np.radians(dirs)
         Ex = np.trapz(np.cos(dirr[None,:,None]) * E, x=dirr, axis=1)
         Ey = np.trapz(np.sin(dirr[None,:,None]) * E, x=dirr, axis=1)
-        Us = stokes_drift(wfrq, Ex, z=0)
-        Vs = stokes_drift(wfrq, Ey, z=0)
+        Us = stokes_drift(wfrq[:80], Ex[0,:80], z=0)
+        Vs = stokes_drift(wfrq[:80], Ey[0,:80], z=0)
 
         # compute components of each angle
         #
         # plot arrows
-        ax[i].quiver(0, 0, Ua, Va, scale=20, color="blue")
-        ax[i].quiver(0, 0, Um, Vm, scale=20, color="darkblue")
-        ax[i].quiver(0, 0, Us, Vs, scale=0.2, color="darkred")
-        ax[i].quiver(0, 0, Uy, Vy, scale=1, color="gold")
+        qva = ax[i].quiver(0, 0, Ua, Va, scale=30, color="blue")
+        qvm = ax[i].quiver(0, 0, Um, Vm, scale=30, color="purple")
+        qvs = ax[i].quiver(0, 0, Us, Vs, scale=0.3, color="darkred")
+        qvy = ax[i].quiver(0, 0, Uy, Vy, scale=1, color="gold", headwidth=0)
+
+        if False:
+            ax[i].quiverkey(qva, 0.0, 1.05, 5, label="Sonic\n5 m/s", labelpos='N')
+            ax[i].quiverkey(qvm, 0.3, 1.05, 5, label="Maximet\n5 m/s", labelpos='N')
+            ax[i].quiverkey(qvs, 0.6, 1.05, 0.05, label="Stokes\n5 cm/s", labelpos='N')
+            ax[i].quiverkey(qvy, 0.9, 1.05, 0.16, label="BOMM\norientation", labelpos='N')
+
 
         # plot wind-sea / swell delimiter
         wdirs = np.radians((dirs-tWdir))
@@ -240,7 +247,7 @@ def bomm_animation(p):
     # start animnation
     def init():
         point.set_data(t[0], z[0])
-        line0.set_data(t[0:1000], z[:1000])
+        line0.set_data(t[0:5000], z[:5000])
         line1.set_data(X[0,:], Y[0,:])
         line2.set_UVC(Uy[0], Vy[0])
         line2.set_offsets([X[0,0], Y[0,0]])
@@ -248,9 +255,9 @@ def bomm_animation(p):
 
     def update(i):
         #
-        if (i % 1000) == 0:
-            line0.set_data(t[i:i+1000], z[i:i+1000])
-            ax1.set_xlim((t[i], t[i+1000]))
+        if (i % 5000) == 0:
+            line0.set_data(t[i:i+5000], z[i:i+5000])
+            ax1.set_xlim((t[i], t[i+5000]))
         #
         point.set_data(t[i], z[i])
         line1.set_data(X[i,:], Y[i,:])
@@ -289,8 +296,9 @@ def bomm_animation(p):
     line1, = ax2.plot([], [], "o-y")
     line2  = ax2.quiver([], [], [], [], scale=10)
     anim = animation.FuncAnimation(fig, update, init_func=init,frames=ntime,
-                                   interval=20, blit=True)
+                                   interval=1, blit=True)
 # }}}
+
 
 
 if __name__ == "__main__":
@@ -298,6 +306,7 @@ if __name__ == "__main__":
     path = "../.."
     #
     date = dt.datetime(2018,9,12,13,0)
+    date = dt.datetime(2018,10,16,0,0)
     metafile = f"{path}/metadata/bomm1_per1.yml" 
     fig, ax = plot_wave_spectra(metafile, date)
     # figname = f"{path}/reports/figures/bomm1_per1_{date.strftime('%Y%m%d%H')}.png"

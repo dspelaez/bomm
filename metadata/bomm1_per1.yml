@@ -692,9 +692,9 @@ processed_variables:
     valid_range: [-180, 180]
     dimensions: time
 
-  heading:
-    standard_name: average_heading_angle
-    long_name: average heading angle
+  yaw:
+    standard_name: average_yaw_angle
+    long_name: average yaw angle
     units: degrees
     convention: math convention; angle measured from the east positive counter-clockwise
     source: ekinox

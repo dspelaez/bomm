@@ -692,9 +692,9 @@ processed_variables:
     valid_range: [-180, 180]
     dimensions: time
 
-  heading:
-    standard_name: average_heading_angle
-    long_name: average heading angle
+  yaw:
+    standard_name: average_yaw_angle
+    long_name: average yaw angle
     units: degrees
     convention: math convention; angle measured from the east positive counter-clockwise
     source: ekinox
@@ -994,7 +994,7 @@ processed_variables:
     long_name: airside friction velocity
     units: m/s
     source: sonic, maximet
-    valid_range: [0,1]
+    valid_range: [0,10]
     dimensions: time
 
   wstar:
@@ -1002,7 +1002,7 @@ processed_variables:
     long_name: waterside friction velocity
     units: m/s
     source: sonic, maximet, rbr
-    valid_range: [0, 0.1]
+    valid_range: [0, 1]
     dimensions: time
 
   U10N:

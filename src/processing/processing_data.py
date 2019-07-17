@@ -563,40 +563,26 @@ def rbr_data_correction(fname):
 
 # }}}
 
-# # wstaff data correction {{{
-# def wstaff_data_correction(fname):
-    # """Remove some strange data from the time series in RBR data.
+# wstaff data correction {{{
+def isvalid_wstaff(eta):
+    """Check if surface elevation measured by the wavestaff is valid"""
     
-    # This function is inteded to be run after the dataset was generated. The
-    # TEOS10 equations are used here to correct the RBR conductivity readings.
-    # """
+    # conversiotn factor (from counts to meters)
+    fac = 3.5/4095
+
+    # we have, so far, three cases here: 1) when the wire timeseries is all
+    # zeros. 2) when it is near 4095. 3) when we have a lot of spikes.
+    #
+    valid = True
+    #
+    if np.nanmean(eta) == 0.0:
+        valid = False
     
-    # import warnings
-    # warnings.filterwarnings("ignore",category=RuntimeWarning)
+    if (np.nanmean(eta) + np.nanstd(eta)) > 4095:
+        valid = False
 
-    # # open dataset as append mode
-    # dataset = nc.Dataset(fname, "a")
-
-    # # extract data into numpy arrays
-    # _vars = ["ffrq", "S", "E", "Hm0", "Tp", "Us0"]
-    # f, S, E, Hm0, Tp,  Us0 = (dataset[v][:].filled() for v in _vars)
-
-    # # find indices where waves present outliers, for that, we use the forth
-    # # wave momentum. When this quality is greater than 0.1, the data are
-    # # removed.
-    # m = lambda S: np.trapz(f**4 * S / np.nanmax(S), x=f)
-    # x = np.array([[m(S[i,:,j]) for j in range(6)] for i in range(len(S))])
-    # ix_valid = x < 0.1
-
-    # # compute the clean data
-    # S_clean = S * ix_valid[:,None,:]
-
-
-    
-    # # close dataset
-    # dataset.close()
-
-# # }}}
+    return valid
+# }}}
 
 
 
@@ -612,7 +598,8 @@ class ProcessingData(object):
     _list_of_dictionaries = "ekx wnd gps mvi met pro rbr sig vec wav".split()
     __slots__ = "metadata list_of_variables r Acc Gyr Eul".split() +\
                  _list_of_dictionaries + ["number_of_minutes"] + \
-                 ["U_unc", "U_rot", "U_cor", "X", "Y", "Z"]
+                 ["U_unc", "U_rot", "U_cor", "X", "Y", "Z"] + \
+                 ["valid_wires", "valid_wires_index", "fcut_waves"]
 
     # private methods {{{
     def __init__(self, metafile, number_of_minutes=30):
@@ -758,14 +745,16 @@ class ProcessingData(object):
 
         # integrate accel and gyro to obtain euler angles
         phi, theta = motcor.pitch_and_roll(*self.Acc, *self.Gyr,
-                fs=100, fc=0.04, fm=0.04)
+                fs=100, fc=0.05, fm=1)
         #
         # compute bomm heading and the merge with ekinox
-        heading = np.radians((90 - self.compute_heading()) % 360)
+        # original heading lecture is an angle measured from north, so we need
+        # do 90-angle. Then we need to substract 90 to orientate with x axis
+        heading = np.radians((90 - self.compute_heading() - 90) % 360)
         psi = motcor.yaw_from_magnetometer(self.Gyr[2], heading,
-                fs=100, fc=0.04, fm=0.04)
+                fs=100, fc=0.05, fm=1)
         #
-        # TODO: from BOMM3 the eknox was updated to output euler angles
+        # TODO: from BOMM3 the ekinox was updated to output euler angles
         #       so we need choose phi and theta directly and psi from the
         #       combination between the magnetometre and the ekinox
         self.Eul = (phi, theta, psi)
@@ -887,16 +876,32 @@ class ProcessingData(object):
         # if std_yaw > 15:
             # raise Exception(f"BOMM has veered too much: {std_yaw:.2f} deg")
 
-        # TODO: check wavestaff standar deviation
-
-        # check waestaffs in use
-        valid_wires = self.metadata["sensors"]["wstaff"]["valid_wires"]
-        valid_wires_index = [w - 1 for w in valid_wires]
+        # conversion factor (from counts to meters)
+        fac = 3.5/4095
 
         # check dimensions
         nfft = 1024
         npoint = 6
         ntime = len(self.wav["time"])
+
+        # get the sampling frequency and the resampling factor
+        fs = self.metadata["sensors"]["wstaff"]["sampling_frequency"]
+        q = int(100/fs)
+
+        # check waestaffs in use
+        # valid_wires = [2,5,6] # BOMM1-PER after december
+        # valid_wires = self.metadata["sensors"]["wstaff"]["valid_wires"]
+        valid_wires = [i+1 for i in range(npoint)
+            if isvalid_wstaff(self.wav[f"ws{i+1}"])]
+        #
+        valid_wires_index = [w - 1 for w in valid_wires]
+
+        # detect the most convinient cutoff frecuency
+        ff, SS = welch(self.ekx["accel_z"], fs=100, nfft=2**13)
+        SS[np.logical_or(ff>0.5, ff<0.05)] = 0.0
+        fp = ff[np.argmax(SS)]
+        fc = 0.5 * fp
+        self.fcut_waves = fc
 
         # determinte position of the wavestaffs
         # TODO: since offset depends on each bomm, they should be passed
@@ -904,10 +909,6 @@ class ProcessingData(object):
         x_offset, y_offset, z_offset = -0.339, 0.413, 4.45
         xx, yy = wdm.reg_array(N=5, R=0.866, theta_0=90)
         # xx, yy = xx + x_offset, yy + y_offset
-
-        # get the sampling frequency and the resampling factor
-        fs = self.metadata["sensors"]["wstaff"]["sampling_frequency"]
-        q = int(100/fs)
 
         # allocate variables
         S = np.zeros((int(nfft/2+1), npoint))
@@ -917,12 +918,14 @@ class ProcessingData(object):
         for i, (x, y), in enumerate(zip(xx, yy)):
             #
             # get suface elevation at each point
-            z = self.wav[f"ws{i+1}"] * 3.5/4095 + z_offset
+            z = self.wav[f"ws{i+1}"] * fac + z_offset
             #
             # apply motion correction
-            # fs, q = 20, 5 # BOMM1
             X[:,i], Y[:,i], Z[:,i] = motcor.position_correction((x,y,z),
-                    self.Acc, self.Eul, fs=fs, fc=0.08, q=q)
+                    self.Acc, self.Eul, fs=fs, fc=fc, q=q)
+            #
+            # remove surface elevation mean value
+            Z[:,i] = Z[:,i] - np.nanmean(Z[:,i])
             #
             # compute fourier spectrum
             # TODO: compute spectrum with homemade pwelch, it will allow to
@@ -931,6 +934,8 @@ class ProcessingData(object):
 
         # save wavestaff position for later
         self.X, self.Y, self.Z = X, Y, Z
+        self.valid_wires = valid_wires
+        self.valid_wires_index = valid_wires_index
 
         # limit to the half of the nfft to remove high frequency noise
         S = np.mean(S[1:int(nfft/4)+1,valid_wires_index], axis=1)
@@ -938,10 +943,9 @@ class ProcessingData(object):
 
         # compute directional wave spectrum
         # TODO: create a anti-aliasing filter to decimate the time series
-        dfac = 2
-        d = lambda x: x[::dfac,1:]
-        wfrq, dirs, E, D = wdm.fdir_spectrum(d(Z), d(Y), d(X), fs=int(fs/dfac),
-                limit=np.pi, omin=-5, omax=1, nvoice=16, ws=(30, 4))
+        d = lambda x: x[:,valid_wires_index]
+        wfrq, dirs, E = wdm.wave_spectrum("fdir", d(Z), d(X), d(Y),
+                fs=fs, limit=np.pi, omin=-5, omax=1, nvoice=16, ws=(30,5))
         
         # compute bulk wave parameters and stokes drift magnitude
         Hm0, Tp, pDir, mDir = wave_parameters(wfrq, dirs, E)
@@ -978,6 +982,9 @@ class ProcessingData(object):
         else:
             raise Exception("Number of nans is more than 30%")
 
+        # cutoff frecuency
+        fc = 0.05
+
         # apply the correction to the anemometer data
         # TODO: This also should be passed as an argument or readed from the
         #       matadata yaml file.
@@ -988,7 +995,7 @@ class ProcessingData(object):
         #
         U_unc = (self.wnd["u_wind"], self.wnd["v_wind"], self.wnd["w_wind"])
         U_rot = motcor.vector_rotation(U_unc, (0,0,sonic_angle), units="deg")
-        U_cor = motcor.velocity_correction(U_rot, self.Acc, self.Eul, L, fs=100, fc=0.08)
+        U_cor = motcor.velocity_correction(U_rot, self.Acc, self.Eul, L, fs=100, fc=fc)
 
         # save corrected and uncorrected for later
         self.U_unc = U_unc

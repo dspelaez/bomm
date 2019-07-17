@@ -83,6 +83,29 @@ def cwt(x, fs, freqs, mother=morlet):
     return fac * np.fft.ifft(fft[None,:] * w, ntime)
 # }}}
 
+#  cross wavelet transform as torrence and compo {{{
+def xwt(x, y, fs, freqs, mother=morlet):
+    """
+    This function compute the continuous wavelet transform
+    
+    Args:
+        x      : time series
+        y      : time series
+        fs     : sampling frquency [Hz]
+        freqs  : array of frequencies
+        mother : function to compute the cwt
+
+    Returns:
+        freqs, W:
+    """
+
+    # compute continuous wavelet transform for each signal
+    Wx = cwt(x, fs=fs, freqs=freqs, mother=morlet)
+    Wy = cwt(y, fs=fs, freqs=freqs, mother=morlet)
+
+    return Wx * Wy.conj()
+# }}}
+
 # continuous wavelet transform as bertran chapron {{{
 def cwt_bc(x, fs, freqs, mother=morlet):
     """This function compute the continuous wavelet transform

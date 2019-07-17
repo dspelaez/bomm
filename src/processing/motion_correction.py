@@ -365,7 +365,7 @@ def tilt_from_accerometer(ax, ay, az):
 # }}}
 
 # compute pitch and roll using a complementary_filter {{{
-def pitch_and_roll(ax, ay, az, wx, wy, wz, fs=100, fc=1/25, fm=1):
+def pitch_and_roll(ax, ay, az, wx, wy, wz, fs=100, fc=0.05, fm=1):
     """Euler angles using a complementary filter in frequency domain."""
 
     # compute pitch and roll from acclerometers
@@ -384,7 +384,7 @@ def pitch_and_roll(ax, ay, az, wx, wy, wz, fs=100, fc=1/25, fm=1):
 # }}}
 
 # orientation from magnetic north {{{
-def yaw_from_magnetometer(wz, heading, fs=100, fc=1/25, fm=1):
+def yaw_from_magnetometer(wz, heading, fs=100, fc=0.05, fm=1):
     """Returns the yaw angle measured clockwise from north.
     
     This function computes the yaw angle which is equivalent to the buoy
@@ -424,7 +424,7 @@ def yaw_from_magnetometer(wz, heading, fs=100, fc=1/25, fm=1):
 
 # --- compute position and velocities ---
 # position correction {{{
-def position_correction(X, A, E, fs=20, fc=1/25, q=5, full=False):
+def position_correction(X, A, E, fs=20, fc=0.05, q=5, full=False):
     """Correcion of the position and the surface elevation.
 
     This function applies the correction of the surface elevation measured by
@@ -533,7 +533,7 @@ def position_correction(X, A, E, fs=20, fc=1/25, q=5, full=False):
 # --- }}}
 
 # velocity correction {{{
-def velocity_correction(U, A, E, L=(0,0,0), fs=100, fc=1/25, full=False):
+def velocity_correction(U, A, E, L=(0,0,0), fs=100, fc=0.05, full=False):
     """Correcion of the position and the surface elevation.
 
     This function applies the correction of the wind speed measured by the sonic

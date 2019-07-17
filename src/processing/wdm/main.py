@@ -42,9 +42,7 @@ import scipy.interpolate as interpolate
 import os
 
 from .wavelet import getfreqs, morlet, cwt, cwt_bc
-from .core import (position_and_phase, compute_wavenumber,
-                  directional_spreading) 
-
+from .core import * 
 
 # wavelet spectrograms of each wavestaff {{{
 def wavelet_spectrogram(A, fs, omin=-6, omax=2, nvoice=32, mode='TC98'):
@@ -115,7 +113,10 @@ def smooth(F, ws=(5,1)):
 
     # define window
     nd, nf = ws
-    frqwin = np.ones(nf)
+    if nf == nd:
+        frqwin = signal.hamming(nf)
+    else:
+        frqwin = np.ones(nf)
     dirwin = signal.hamming(nd)
     window = frqwin[None,:] * dirwin[:,None]
     window = window / window.sum()
@@ -139,12 +140,24 @@ def interpfrqs(S, frqs, new_frqs):
 # }}}
 
 # frequency - direction spectrum {{{
-def fdir_spectrum(A, x, y, fs, limit=np.pi, omin=-6, omax=2,
-                  nvoice=32, ws=(30,1)):
+def wave_spectrum(kind, A, x, y, fs, limit=None, omin=-6, omax=2,
+             nvoice=32, ws=(30,4), **kwargs):
 
     """Computes the frequency-direction spectrum using the WDM method.
 
     Args:
+        kind (string):
+            - dspr: directional spreading, energy using fourier
+                returns: frqs, dirs, E, D
+            - fdir: frequency-direction using wavelet power
+                returns: frqs, dirs, E
+            - kxky: wavenumber-wavenumber
+                returns: kxbin, kybin, E
+            - kdir: wavenumber-direction (not implemented yet)
+                returns: kbin, dirs, E
+            - fk:   frequency-wavenumber (not implemented yet)
+                returns: frqs, kbin, E
+
         A (array): Surface elevation for each probe.
         x (array): Time-varying x position of each probe.
         y (array): Time-varying y position of each probe.
@@ -156,7 +169,7 @@ def fdir_spectrum(A, x, y, fs, limit=np.pi, omin=-6, omax=2,
         ws (tuple): Number of directions and frequencies to smooth.
 
     Returns:
-        Frequceny-direction wave spectrum.
+        Depending on `kind`
 
     """
 
@@ -179,7 +192,7 @@ def fdir_spectrum(A, x, y, fs, limit=np.pi, omin=-6, omax=2,
     neqs = int(npoints * (npoints-1) / 2)
     XX, Dphi = position_and_phase(wcoefs, x, y, neqs)
     if limit:
-        min_phase = 0.0
+        min_phase = 0
         Dphi[Dphi == 0] = min_phase
         Dphi[Dphi >  limit] = min_phase
         Dphi[Dphi < -limit] = min_phase
@@ -188,32 +201,75 @@ def fdir_spectrum(A, x, y, fs, limit=np.pi, omin=-6, omax=2,
     kx, ky = compute_wavenumber(XX, Dphi)
     
     # compute power density from wavelet coefficients
+    power = np.mean(np.abs(wcoefs)**2, axis=2)
     dirs = np.arange(0, 360)
-    power = np.mean(np.abs(wcoefs) ** 2, axis=2)
 
-    # compute fourier spectrum and interpolate to wavelet frequencies
-    Pxx = np.zeros((int(nperseg/2+1), npoints))
-    for j in range(npoints):
-        f, Pxx[:,j] = signal.welch(A[:,j], fs, "hann", nperseg)
-    S = interpfrqs(Pxx.mean(1)[1:], f[1:], frqs)
+    # frequency-direction spectrum based on computing the weighed directional
+    # distribution and multipling by the fourier spectrum. The assumption here
+    # is that we can split the directional spectrum as E = S * D
+    if kind == "dspr":
+        #
+        # compute fourier spectrum and interpolate to wavelet frequencies
+        Pxx = np.zeros((int(nperseg/2+1), npoints))
+        for j in range(npoints):
+            f, Pxx[:,j] = signal.welch(A[:,j], fs, "hann", nperseg)
+        S = interpfrqs(Pxx.mean(1)[1:], f[1:], frqs)
+        #
+        # compute directional spreading function
+        D = directional_spreading(wcoefs, kx, ky)
+        # 
+        # frequency direction spectrum
+        E = S[None,:] * D
+        #
+        # smooth
+        if ws:
+            D_smooth = smooth(D, ws)
+            E_smooth = smooth(E, ws)
+            return frqs, dirs, E_smooth, D_smooth
+        else:
+            return frqs, dirs, E, D
 
-    # compute directional spreading function
-    D = directional_spreading(wcoefs, kx, ky)
+    # frequency-directional spectrum
+    if kind == "fdir":
+        #
+        # compute energy directly from wavlets
+        E = compute_fdir_spectrum(wcoefs, kx, ky)
+        #
+        # normalize with RMSE
+        m0 = np.trapz(np.trapz(E, x=frqs, axis=1), x=np.radians(dirs))
+        E = E * np.var(A) / m0
+        #
+        # smooth
+        if ws:
+            E_smooth = smooth(E, ws)
+            return frqs, dirs, E_smooth
+        else:
+            return frqs, dirs, E
 
-    # check nans if they exist fill
-    if np.isnan(D).any():
-        print(frqs[np.isnan(D.mean(0))])
-    
-    # frequency direction spectrum
-    E = S[None,:] * D
-
-    # smooth
-    if ws:
-        D_smooth = smooth(D, ws)
-        E_smooth = smooth(E, ws)
-        return frqs, dirs, E_smooth, D_smooth
-    else:
-        return frqs, dirs, E, D
+    # kx-ky spectrum
+    if kind == "kxky":
+        #
+        # compute energy directly from wavlets
+        kmax = kwargs.get('kmax', 0.5)
+        nwnum = kwargs.get('nwnum', 1024)
+        kxbin = np.linspace(-kmax, kmax, nwnum)
+        kybin = np.linspace(-kmax, kmax, nwnum)
+        E = compute_kxky_spectrum(wcoefs, kx, ky, kxbin, kybin)
+        #
+        # normalize with RMSE
+        m0 = np.trapz(np.trapz(E, x=kybin, axis=0), x=kxbin)
+        E = E * np.var(A) / m0
+        #
+        # smooth
+        if ws:
+            if ws[0] != ws[1]:
+                print("Smoothing window must be simetrical in this case")
+                return kxbin, kybin, E
+            else:
+                E_smooth = smooth(E, ws)
+                return kxbin, kybin, E_smooth
+        else:
+            return kxbin, kybin, E
 # --- }}}
 
 

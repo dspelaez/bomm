@@ -7,28 +7,15 @@
 !
 ! Distributed under terms of the GNU/GPL license.
 !
+!
+!    To compile this module use:
+!        >> f2py -c core.f90 -m core
+!
 ! ===================================================================
 
-      
-      subroutine check_dimensions(W, nfrqs, ntime, npoints, neqs)
-!
-!     Return the dimensions to work with the array W
-!
-      implicit none
-      complex, dimension(:,:,:), intent(in) :: W
-      integer, intent(out) :: nfrqs, ntime, npoints, neqs
-        
-      nfrqs   = size(W, 1)
-      ntime   = size(W, 2)
-      npoints = size(W, 3)
-      neqs    = int(npoints * (npoints-1) / 2)
 
-      end subroutine
-
-
-
+!     position_and_phase {{{
 ! ===================================================================
-
       subroutine position_and_phase(W, x, y, XX, Dphi, &
                                     nfrqs, ntime, npoints, neqs)
 !
@@ -51,7 +38,7 @@
 !
 
 !     compute and phase from the wavelet coefficients
-      phase = atan2(-aimag(W), real(W))
+      phase = atan2(aimag(W), real(W))
 
       ! loop for each unique pair of points
       !    i,j ---> move along points
@@ -70,7 +57,7 @@
             !
             ! difference of phases
             do n = 1, nfrqs
-              Dphi(n,k,ij) = phase(n,k,j) - phase(n,k,i)
+              Dphi(n,k,ij) = phase(n,k,i) - phase(n,k,j)
             end do
           !
           end do
@@ -81,12 +68,10 @@
       end do
       
       end subroutine
+!     }}}
 
-
-
-
+!     compute_wavenumbers {{{
 ! ===================================================================
-
       subroutine compute_wavenumber(XX, Dphi, kx, ky, &
                                     nfrqs, ntime, neqs)
 
@@ -103,11 +88,11 @@
       real*8 :: detinv
       real*8 :: XTX(2,2), XTX_inv(2,2), XTDphi(2), kk(2)
 
-      ! loop for each frequency
-      do i = 1, nfrqs
+      ! loop for each time
+      do j = 1, ntime
         !
-        ! loop for each time
-        do j = 1, ntime
+        ! loop for each frequency
+        do i = 1, nfrqs
           !
           ! --- least square estimation of vector kk=(kx, ky) ---
           !     the LSR of k is given by:
@@ -117,10 +102,10 @@
           XTX(:,:) = matmul(transpose(XX(j,:,:)), XX(j,:,:)) 
           !
           ! inverse of the first term
-          detinv = 1 / (XTX(1,1)*XTX(2,2) - XTX(1,2)*XTX(2,1))
-          do m = 1, 2
-            do n = 1, 2
-              XTX_inv(m,n) = (-1)**(m+n) * detinv * XTX(n,m)
+          detinv = 1.d0 / (XTX(1,1)*XTX(2,2) - XTX(1,2)*XTX(2,1))
+          do n = 1, 2
+            do m = 1, 2
+              XTX_inv(m,n) = ((-1)**(m+n)) * detinv * XTX(n,m)
             end do
           end do
           !
@@ -136,9 +121,9 @@
       end do
 
       end subroutine
+!     }}}
 
-
-
+!     directional_spreading {{{
 ! ===================================================================
 
       subroutine directional_spreading(W, kx, ky, D, &
@@ -154,11 +139,11 @@
       real*8, intent(in)    :: kx(nfrqs, ntime), ky(nfrqs, ntime)
       integer, intent(in)   :: nfrqs, ntime, npoints
 !
-      integer :: i, j, k, ix(ntime)
+      integer :: i, j, t, ix(ntime)
       real*8 :: kappa(nfrqs, ntime), theta(nfrqs, ntime)
       real*8 :: power(nfrqs, ntime)
       real*8 :: theta_degrees(nfrqs, ntime), weight, m0(nfrqs)
-      real*8, parameter :: pi = 4.d0*DATAN(1.d0)
+      real*8, parameter :: pi = 3.14159265359
 !
       real*8, intent(out) :: D(360, nfrqs)
 
@@ -181,11 +166,11 @@
         do i = 0, 359
           !
           ! loop for each time
-          do k = 1, ntime
-            if (theta_degrees(j,k) == i) then
-              ix(k) = 1
+          do t = 1, ntime
+            if (theta_degrees(j,t) == i) then
+              ix(t) = 1
             else
-              ix(k) = 0
+              ix(t) = 0
             end if
           end do
           !
@@ -209,5 +194,121 @@
       end do
 
       end subroutine
+!     }}}
+
+!     compute_fdir_spectrum {{{
+! ===================================================================
+
+      subroutine compute_fdir_spectrum(W, kx, ky, E,         &
+                                nfrqs, ntime, npoints)
+
+!     This function computes the wavenumber-direction wave spectrum
+!     averaging the occurences of each case in the power matrix.
+      
+!     variable declaration
+      implicit none
+!
+      complex*8, intent(in) :: W(nfrqs, ntime, npoints)
+      real*8, intent(in)    :: kx(nfrqs, ntime), ky(nfrqs, ntime)
+      integer, intent(in)   :: nfrqs, ntime, npoints
+!
+      integer :: f, d, t
+      real*8 :: power(nfrqs, ntime)
+      real*8 :: theta(nfrqs, ntime)
+      real*8, parameter :: pi = 3.14159265359
+      real*8, intent(out) :: E(360, nfrqs)
+
+
+!     compute power of each pair frequency-time
+      power = sum(abs(W)**2, 3) / npoints
+
+!     compute magnitude and direction of the wavenumber vector
+      theta = modulo(atan2(ky, kx) * 180./pi, 360.)
+
+!     f ---> iterate over frequencies
+!     t ---> iterate over time
+
+      ! initilize matrix with zeros
+      E(:, :) = 0.
+
+!     loop for each wavenumber
+      do t = 1, ntime
+        !
+        ! loop for each direction
+        do f = 1, nfrqs
+          !
+          ! map direction to its corresponding index
+          d = nint(theta(f,t) + 1)
+          !
+          ! compute the frequency-wavenumber spectrum
+          E(d,f) = E(d,f) + power(f,t)
+          !  
+        end do
+      end do
+
+      end subroutine
+!     }}}
+
+!     compute_kxky_spectrum {{{
+! ===================================================================
+
+      subroutine compute_kxky_spectrum(W, kx, ky, kxbin, kybin, E, &
+                              nfrqs, nkxbin, nkybin, ntime, npoints)
+
+!     This function computes the kx-ky wave spectrum summing the
+!     energy of each case in the power matrix.
+      
+!     variable declaration
+      implicit none
+!
+      complex*8, intent(in) :: W(nfrqs, ntime, npoints)
+      real*8, intent(in)    :: kx(nfrqs, ntime), ky(nfrqs, ntime)
+      real*8, intent(in)    :: kxbin(nkxbin), kybin(nkybin)
+      integer, intent(in)   :: nfrqs, nkxbin, nkybin, ntime, npoints
+!
+      integer :: f, t, jkx, jky
+      real*8 :: power(nfrqs, ntime), dkx, dky
+      real*8, parameter :: pi = 3.14159265359
+      real*8, intent(out) :: E(nkybin, nkxbin)
+
+
+!     compute power of each pair frequency-time
+      power = sum(abs(W)**2, 3) / npoints
+
+!     arrays must be linearily spaced
+      dkx =  kxbin(2) - kxbin(1)
+      dky =  kybin(2) - kybin(1)
+
+!     f ---> iterate over frequencies
+!     t ---> iterate over time
+!     jkx -> iterate over wavenumbers x
+!     jkx -> iterate over wavenumbers y
+      
+      ! initilize matrix with zeros
+      E(:, :) = 0.
+
+!     loop for each wavenumber
+      do t = 1, ntime
+        !
+        ! loop for each direction
+        do f = 1, nfrqs
+          !
+          ! TODO: discard indices outside the range of wavenumbers
+          if (abs(kx(f,t)) .le. kxbin(nkxbin) .and. &
+            & abs(ky(f,t)) .le. kybin(nkybin)) then
+            !
+            jkx = nint((kx(f,t) - kxbin(1)) / dkx + 1)
+            jky = nint((ky(f,t) - kxbin(1)) / dky + 1)
+            !
+            ! compute the wavenumber spectrum
+            E(jky,jkx) = E(jky,jkx) + power(f,t)
+            !
+          end if
+          !  
+        end do
+      end do
+
+      end subroutine
+!     }}}
 
 ! --- end of file ---
