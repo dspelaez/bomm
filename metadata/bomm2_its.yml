@@ -3,7 +3,8 @@
 
 ---
 name: bomm2_its
-basepath: "/Volumes/BOMM/cigom/data/"
+#basepath: "/Volumes/BOMM/cigom/data/"
+basepath: "/Volumes/Boyas/bomm_database/data/"
 t_ini: '2018-03-03'
 t_fin: '2018-06-19'
 
@@ -53,6 +54,8 @@ sensors:
     serial_number : ''
     description: MRU Subsea Ekinox2-M
     convention: X positive towards north buoy, Y eastward and Z downward
+    cutoff_frequency: 0.04
+    gyro_merging_frequency: 1
     variables:
       accel_x:
         column: 6

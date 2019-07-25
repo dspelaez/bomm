@@ -599,7 +599,7 @@ class ProcessingData(object):
     __slots__ = "metadata list_of_variables r Acc Gyr Eul".split() +\
                  _list_of_dictionaries + ["number_of_minutes"] + \
                  ["U_unc", "U_rot", "U_cor", "X", "Y", "Z"] + \
-                 ["valid_wires", "valid_wires_index", "fcut_waves"]
+                 ["valid_wires", "valid_wires_index"]
 
     # private methods {{{
     def __init__(self, metafile, number_of_minutes=30):
@@ -734,6 +734,12 @@ class ProcessingData(object):
                 if (number_of_nans / len(v)) < 0.1:
                     self.ekx[k][np.isnan(v)] = np.nanmean(v)
 
+
+        # cutoff and merging frequency
+        fs = self.metadata["sensors"]["ekinox"]["sampling_frequency"]
+        fc = self.metadata["sensors"]["ekinox"]["cutoff_frequency"]
+        fm = self.metadata["sensors"]["ekinox"]["gyro_merging_frequency"]
+
         # construct accelerometer and gyroscope tuples
         # apply a rotation to an ENU frame of reference
         R = (np.pi, 0, np.pi/2)
@@ -745,14 +751,14 @@ class ProcessingData(object):
 
         # integrate accel and gyro to obtain euler angles
         phi, theta = motcor.pitch_and_roll(*self.Acc, *self.Gyr,
-                fs=100, fc=0.05, fm=1)
+                fs=fs, fc=fc, fm=fm)
         #
         # compute bomm heading and the merge with ekinox
         # original heading lecture is an angle measured from north, so we need
         # do 90-angle. Then we need to substract 90 to orientate with x axis
         heading = np.radians((90 - self.compute_heading() - 90) % 360)
         psi = motcor.yaw_from_magnetometer(self.Gyr[2], heading,
-                fs=100, fc=0.05, fm=1)
+                fs=fs, fc=fc, fm=fm)
         #
         # TODO: from BOMM3 the ekinox was updated to output euler angles
         #       so we need choose phi and theta directly and psi from the
@@ -889,19 +895,22 @@ class ProcessingData(object):
         q = int(100/fs)
 
         # check waestaffs in use
-        # valid_wires = [2,5,6] # BOMM1-PER after december
-        # valid_wires = self.metadata["sensors"]["wstaff"]["valid_wires"]
         valid_wires = [i+1 for i in range(npoint)
             if isvalid_wstaff(self.wav[f"ws{i+1}"])]
         #
+        # if bomm1--> force to remove first wire
+        if self.metadata["name"] == "bomm1_its":
+            valid_wires = valid_wires[1:]
+        #
+        # index of valid wires
         valid_wires_index = [w - 1 for w in valid_wires]
 
         # detect the most convinient cutoff frecuency
-        ff, SS = welch(self.ekx["accel_z"], fs=100, nfft=2**13)
-        SS[np.logical_or(ff>0.5, ff<0.05)] = 0.0
-        fp = ff[np.argmax(SS)]
-        fc = 0.5 * fp
-        self.fcut_waves = fc
+        fc = self.metadata["sensors"]["ekinox"]["cutoff_frequency"]
+        # ff, SS = welch(self.ekx["accel_z"], fs=100, nfft=2**13)
+        # SS[np.logical_or(ff>0.5, ff<0.05)] = 0.0
+        # fp = ff[np.argmax(SS)]
+        # fc = 0.5 * fp
 
         # determinte position of the wavestaffs
         # TODO: since offset depends on each bomm, they should be passed

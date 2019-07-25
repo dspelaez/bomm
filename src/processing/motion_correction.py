@@ -477,6 +477,14 @@ def position_correction(X, A, E, fs=20, fc=0.05, q=5, full=False):
         * Anctil Donelan Drennan Graber 1994, JAOT 11, 1144-1150
         * Drennan Donelan Madsen Katsaros Terray Flagg 1994, JAOT 11, 1109-1116
     """
+
+    # ======= TEMPORAL PATCH ======= #
+    # We are gonna change the order
+    # of the roll and pitch angles
+    # because we observa a strange
+    # behaviuor in the wave spectr.
+    # E = (E[1], E[0], E[2])
+    # ============================== #
     
     # substract gravity acceleration effect
     G = vector_rotation((0,0,-9.8), E)
@@ -501,9 +509,6 @@ def position_correction(X, A, E, fs=20, fc=0.05, q=5, full=False):
 
     # compute sines and cosines
     roll, pitch, yaw = E_down
-    # cp, sp = np.cos(pitch), np.sin(pitch)
-    # cr, sr = np.cos(roll),  np.sin(roll)
-    # cy, sy = np.cos(yaw), np.sin(yaw)
 
     # convert observations into the inertial frame
     x_obs, y_obs, z_obs = vector_rotation(X, (roll, pitch, yaw))

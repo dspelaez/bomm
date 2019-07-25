@@ -20,7 +20,7 @@ keywords: >
   oceanographic buoy, wave parameters.
 
 comments: >
-  The BOMM1-ITS was deployed on 2018/07/10 and recovered on 2019/02/27.
+  The BOMM1-PER1 was deployed on 2018/07/10 and recovered on 2019/02/27.
 
 institution: CICESE - CIGOM
 date_created: 2019/01/26
@@ -53,6 +53,8 @@ sensors:
     serial_number : 024000042
     description: MRU Subsea Ekinox2-M
     convention: X positive towards north buoy, Y eastward and Z downward
+    cutoff_frequency: 0.08
+    gyro_merging_frequency: 0.04
     variables:
       accel_x:
         column: 6

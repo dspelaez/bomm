@@ -257,11 +257,6 @@ class PlotSpectra(object):
         # plot high frequency data
         try:
             self.get_high_frequency_data(i)
-
-            # ==== TEMPORAL HACK =====
-            # REPLACE NETCDF E BY s.pE
-            # ========================
-            self.E[i,:,:] = self.p.r["E"]
             # 
             bx1.plot(self.t_wind, self.u_wind, color="0.9")
             bx2.plot(self.t_wind, self.v_wind, color="0.9")
@@ -375,7 +370,6 @@ class PlotSpectra(object):
 
         return fig, ax
 
-
 # }}}
 
 
@@ -386,7 +380,7 @@ if __name__ == "__main__":
         t_ini = dt.datetime(2018, 9, 11)
         t_end = dt.datetime(2018, 9, 16)
         s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end, 30)
-        s.animate()
+        # s.animate()
         s.time_directional_spectrum("./events/spectra_event_1.png")
 
     # define initial and final time (no more than 3 or 4 days)
@@ -407,10 +401,20 @@ if __name__ == "__main__":
 
     # plot specific date only
     if False:
+
+        # bomm1-its
         date = dt.datetime(2017, 12, 8, 14, 0)
         t_ini = date - dt.timedelta(days=1)
         t_end = date + dt.timedelta(days=1)
         s = PlotSpectra("../../metadata/bomm1_its.yml", t_ini, t_end, 10)
+        i = np.argmin(abs(s.time - date))
+        s.make_plot(i)
+        
+        # bomm1-per1
+        date = dt.datetime(2018, 10, 16, 6, 0)
+        t_ini = date - dt.timedelta(days=1)
+        t_end = date + dt.timedelta(days=1)
+        s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end, 10)
         i = np.argmin(abs(s.time - date))
         s.make_plot(i)
 
@@ -428,10 +432,10 @@ if __name__ == "__main__":
             date = dt.datetime.strptime(strdate, "%Y%m%dT%H%M%S")
             t_ini = date - dt.timedelta(days=1)
             t_end = date + dt.timedelta(days=1)
-            s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end, 30)
+            s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end, 10)
             i = np.argmin(abs(s.time - date))
             fig, *ax = s.make_plot(i)
-            fig.savefig(f"./terrasarx/{strdate}_30min.png", dpi=300)
+            fig.savefig(f"./terrasarx/{strdate}_10min.png", dpi=300)
             plt.close(fig)
 
     # sentinel
@@ -449,8 +453,8 @@ if __name__ == "__main__":
             date = dt.datetime.strptime(strdate, "%Y%m%dT%H%M%S")
             t_ini = date - dt.timedelta(days=1)
             t_end = date + dt.timedelta(days=1)
-            s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end, 30)
+            s = PlotSpectra("../../metadata/bomm1_per1.yml", t_ini, t_end, 10)
             i = np.argmin(abs(s.time - date))
             fig, *ax = s.make_plot(i)
-            fig.savefig(f"./sentinel/{strdate}_30min.png", dpi=300)
+            fig.savefig(f"./sentinel/{strdate}_10min.png", dpi=300)
             plt.close(fig)
