@@ -199,8 +199,8 @@
 !     compute_fdir_spectrum {{{
 ! ===================================================================
 
-      subroutine compute_fdir_spectrum(W, kx, ky, E,         &
-                                nfrqs, ntime, npoints)
+      subroutine compute_fdir_spectrum(W, kx, ky, E,        &
+                                       nfrqs, ntime, npoints)
 
 !     This function computes the wavenumber-direction wave spectrum
 !     averaging the occurences of each case in the power matrix.
@@ -249,6 +249,74 @@
       end subroutine
 !     }}}
 
+!     compute_kdir_spectrum {{{
+! ===================================================================
+
+      subroutine compute_kdir_spectrum(W, kx, ky, E, wnum,         &
+                                       nfrqs, ntime, nwnum, npoints)
+
+!     This function computes the wavenumber-direction wave spectrum
+!     averaging the occurences of each case in the power matrix.
+      
+!     variable declaration
+      implicit none
+!
+      complex*8, intent(in) :: W(nfrqs, ntime, npoints)
+      real*8, intent(in)    :: kx(nfrqs, ntime), ky(nfrqs, ntime)
+      real*8, intent(in)    :: wnum(nwnum)
+      integer, intent(in)   :: nfrqs, ntime, npoints, nwnum
+!
+      integer :: f, d, t, k
+      real*8 :: power(nfrqs, ntime)
+      real*8 :: kappa(nfrqs, ntime)
+      real*8 :: theta(nfrqs, ntime)
+      real*8 :: kmin, kmax, dk
+      real*8, parameter :: pi = 3.14159265359
+      real*8, intent(out) :: E(360, nwnum)
+
+
+!     compute power of each pair frequency-time
+      power = sum(abs(W)**2, 3) / npoints
+
+!     compute magnitude and direction of the wavenumber vector
+      kappa = sqrt(kx**2 + ky**2)
+      theta = modulo(atan2(ky, kx) * 180./pi, 360.)
+
+!     f ---> iterate over frequencies
+!     k ---> iterate over wavenumbers
+!     t ---> iterate over time
+
+!     compute delta k and mininum k
+      dk =  wnum(2) - wnum(1)
+      kmin = wnum(1)
+      kmax = wnum(nwnum)
+
+      ! initilize matrix with zeros
+      E(:, :) = 0.
+
+!     loop for each wavenumber
+      do t = 1, ntime
+        !
+        ! loop for each direction
+        do f = 1, nfrqs
+          !
+          ! compute the frequency-wavenumber spectrum
+          if (kappa(f,t) .le. kmax) then
+            !
+            ! map direction to its corresponding index
+            d = nint(theta(f,t) + 1)
+            k = nint((kappa(f,t) - kmin) / dk + 1)
+            !
+            E(d,k) = E(d,k) + power(f,t)
+            !
+          end if
+          !  
+        end do
+      end do
+
+      end subroutine
+!     }}}
+
 !     compute_kxky_spectrum {{{
 ! ===================================================================
 
@@ -285,7 +353,7 @@
 !     jkx -> iterate over wavenumbers y
       
       ! initilize matrix with zeros
-      E(:, :) = 0.
+      E(:,:) = 0.
 
 !     loop for each wavenumber
       do t = 1, ntime

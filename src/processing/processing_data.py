@@ -272,7 +272,7 @@ def janssen_source_diss(frqs, dirs, E):
 # --- }}}
 
 # janssen wind input {{{
-def janssen_source_inpt(frq, dirs, E, ustar, udir):
+def janssen_source_input(frqs, dirs, E, ustar, udir, **kwargs):
     """Implementation of the WAM Cycle 5 wind input source term.
 
     Args:
@@ -292,25 +292,40 @@ def janssen_source_inpt(frq, dirs, E, ustar, udir):
           1856-1866.
 
     """
+
+    # function to integrate quickly
     integral = lambda X: np.trapz(np.trapz(X, frqs), np.radians(dirs))
+
+    # get kwargs
+    rhoa = kwargs.get('rhoa', 1.25)
+    rhow = kwargs.get('rhow', 1020)
+    depth = kwargs.get('depth', 100)
+
+    # parameters
+    g = 9.8
+    kappa = 0.41
+    dens_rel = rhoa / rhow
+    alpha_garret = 0.0144
 
     # funtion to recursevily estimate wind input
     def source_input_estimation(ze):
 
         # compute directional distribution
         dir2 = (dirs - udir) % 360
+        mask = np.logical_and(dir2>90, dir2<270)
         cos = np.cos(np.radians(dirs-udir))
-        cos[np.logical_and(dir2>90, dir2<270)] = 0.
+        cos[mask] = 1E-256
 
         # compute Miles parameter
         ustar_along_wind = abs(ustar * cos)
         wave_age = c[None,:] / ustar_along_wind[:,None]
+        # wave_age =  c[None,:] * cos[:,None] / ustar
         mu = (g * ze / c[None,:]**2) * np.exp(kappa * wave_age)
+        mu[mu >= 1] = 1
         
         # compute beta paremter
         # ---> Masterbroek eq13
         beta = (1.2 / kappa**2) * mu * np.log(mu)**4
-        beta[mu > 1] = 0.
 
         # compute source term
         factor = w[None,:] * dens_rel * beta * (ustar / c[None,:]) ** 2
@@ -318,7 +333,10 @@ def janssen_source_inpt(frq, dirs, E, ustar, udir):
 
     # compute phase speed
     w = 2 * np.pi * frqs
-    k = sp.wavenumber(frqs, d=120)
+    try:
+        k = wavenumber(frqs, d=depth)
+    except:
+        k = w**2 / g
     c = w / k
 
     # compute roughness lenght iteratively
@@ -327,7 +345,7 @@ def janssen_source_inpt(frq, dirs, E, ustar, udir):
 
     # first estimation
     Sin = source_input_estimation(z0)
-    tauw = rhow*g * integral(Sin/c[None,:])
+    tauw = rhow*g * integral(Sin / c[None,:])
     Ein = g * integral(Sin)
     ze = z0
     if tauw > tau:

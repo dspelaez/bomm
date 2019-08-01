@@ -62,6 +62,7 @@ def load_dataset(year, month, region="GLOBAL", wind_source="ECMWF"):
         rcode = "GLOB"
     else:
         grid = "10M"
+        rcode = region
 
     dic = {}
     list_of_variables = ["phs", "pdir", "ptp"]

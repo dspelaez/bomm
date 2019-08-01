@@ -139,7 +139,7 @@ def interpfrqs(S, frqs, new_frqs):
     return interpolate.interp1d(frqs, S, fill_value='extrapolate')(new_frqs)
 # }}}
 
-# frequency - direction spectrum {{{
+# wave spectrum {{{
 def wave_spectrum(kind, A, x, y, fs, limit=None, omin=-6, omax=2,
              nvoice=32, ws=(30,4), **kwargs):
 
@@ -153,7 +153,7 @@ def wave_spectrum(kind, A, x, y, fs, limit=None, omin=-6, omax=2,
                 returns: frqs, dirs, E
             - kxky: wavenumber-wavenumber
                 returns: kxbin, kybin, E
-            - kdir: wavenumber-direction (not implemented yet)
+            - kdir: wavenumber-direction
                 returns: kbin, dirs, E
             - fk:   frequency-wavenumber (not implemented yet)
                 returns: frqs, kbin, E
@@ -250,7 +250,7 @@ def wave_spectrum(kind, A, x, y, fs, limit=None, omin=-6, omax=2,
     if kind == "kxky":
         #
         # compute energy directly from wavlets
-        kmax = kwargs.get('kmax', 0.5)
+        kmax = kwargs.get('kmax', 1)
         nwnum = kwargs.get('nwnum', 1024)
         kxbin = np.linspace(-kmax, kmax, nwnum)
         kybin = np.linspace(-kmax, kmax, nwnum)
@@ -263,13 +263,47 @@ def wave_spectrum(kind, A, x, y, fs, limit=None, omin=-6, omax=2,
         # smooth
         if ws:
             if ws[0] != ws[1]:
-                print("Smoothing window must be simetrical in this case")
+                print("Smoothing window must be symmetrical in this case")
                 return kxbin, kybin, E
             else:
                 E_smooth = smooth(E, ws)
                 return kxbin, kybin, E_smooth
         else:
             return kxbin, kybin, E
+
+    # kdir spectrum
+    if kind == "kdir":
+        #
+        # compute energy directly from wavelets
+        kmax = kwargs.get('kmax', 1)
+        nwnum = kwargs.get('nwnum', 1024)
+        wnum = np.linspace(0, kmax, nwnum)
+        E = compute_kdir_spectrum(wcoefs, kx, ky, wnum)
+        #
+        # normalize with RMSE
+        m0 = np.trapz(np.trapz(E, x=wnum, axis=1), x=np.radians(dirs))
+        E = E * np.var(A) / m0
+        #
+        # smooth
+        if ws:
+            E_smooth = smooth(E, ws)
+            return wnum, dirs, E_smooth
+        else:
+            return wnum, dirs, E
+
+
+    # fk spectrum
+    if kind == "fk":
+        raise NotImplementedError("Not programmed yet!")
+
+    
+    # check kind option
+    available_kind_options = ["dspr", "fdir", "kxky", "kdir", "fk"]
+    if kind not in available_kind_options:
+        raise NotImplementedError("Not a valid option. See help.")
+
+
+
 # --- }}}
 
 

@@ -54,8 +54,8 @@ sensors:
     serial_number : 024000042
     description: MRU Subsea Ekinox2-M
     convention: X positive towards north buoy, Y eastward and Z downward
-    cutoff_frequency: 0.04
-    gyro_merging_frequency: 1
+    cutoff_frequency: 0.08
+    gyro_merging_frequency: 1.0
     variables:
       accel_x:
         column: 6
