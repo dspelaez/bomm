@@ -490,8 +490,8 @@ def position_correction(X, A, E, fs=20, fc=0.05, q=5, full=False):
     G = vector_rotation((0,0,-9.8), E)
 
     # apply double integration in the frequency domain
-    P = (fft_integration(A[0], fs*q, fc=fc*2.5, order=-2), # TODO: WARNING
-         fft_integration(A[1], fs*q, fc=fc*2.5, order=-2), # TODO: WARNING
+    P = (fft_integration(A[0], fs*q, fc=fc, order=-2), # TODO: WARNING
+         fft_integration(A[1], fs*q, fc=fc, order=-2), # TODO: WARNING
          fft_integration(A[2], fs*q, fc=fc, order=-2))
     
     # compute the derivative of the euler angles
@@ -601,9 +601,6 @@ def velocity_correction(U, A, E, L=(0,0,0), fs=100, fc=0.05, full=False):
     #   pitch --> p --> theta --> E[1]
     #   yaw   --> y --> psi   --> E[2]
     roll, pitch, yaw = E
-    # cp, sp = np.cos(pitch), np.sin(pitch)
-    # cr, sr = np.cos(roll),  np.sin(roll)
-    # cy, sy = np.cos(yaw), np.sin(yaw)
 
     # convert observations into the inertial frame
     u_obs, v_obs, w_obs = vector_rotation(U, (roll, pitch, yaw))
