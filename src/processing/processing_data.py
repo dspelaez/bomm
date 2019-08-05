@@ -773,7 +773,7 @@ class ProcessingData(object):
         #
         # compute bomm heading and the merge with ekinox
         # original heading lecture is an angle measured from north, so we need
-        # do 90-angle. Then we need to substract 90 to orientate with x axis
+        # to do 90-actual_angle. Then we need to substract 90 to orientate with x axis
         heading = np.radians((90 - self.compute_heading() - 90) % 360)
         psi = motcor.yaw_from_magnetometer(self.Gyr[2], heading,
                 fs=fs, fc=fc, fm=fm)
