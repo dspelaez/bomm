@@ -3,7 +3,6 @@
 
 ---
 name: bomm1_per1
-#basepath: "/Volumes/PERDIDO1/"
 basepath: "/Volumes/Boyas/bomm_database/data/"
 t_ini: '2018-07-11'
 t_fin: '2019-02-27'
@@ -23,7 +22,7 @@ comments: >
   The BOMM1-PER1 was deployed on 2018/07/10 and recovered on 2019/02/27.
 
 institution: CICESE - CIGOM
-date_created: 2019/01/26
+date_created: 2019/05/09
 creator_name: The waves group - CICESE
 creator_url: https://www.cicese.mx/
 creator_email: oleaje@cigom.org
@@ -633,9 +632,6 @@ sensors:
     serial_number : OSSI-010-002F3.5
     wires_used: [1, 2, 3, 4, 5, 6]
     electronics_used: [46, 2, 3, 4, 5, 6]
-    valid_wires: [1, 2, 3, 4, 5, 6]
-    x_coordinates: [0.00, -0.87, -0.25,  0.71,  0.69, -0.28]
-    y_coordinates: [0.00, -0.02, -0.83, -0.50,  0.52,  0.82]
     description: Pentagon-shape array of six Wave Staff capacitance wires
     correction_factor: '3.5/4095'
     variables:

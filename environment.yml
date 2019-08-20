@@ -1,49 +1,160 @@
-# This file may be used to create an environment using:
-# $ conda create --name <env> --file <this file>
-# platform: osx-64
-asn1crypto=0.24.0=py36_0
-bomm=0.1=pypi_0
-bzip2=1.0.7=h1de35cc_0
-ca-certificates=2019.5.15=0
-certifi=2019.6.16=py36_0
-cffi=1.11.5=py36h342bebf_0
-chardet=3.0.4=py36h96c241c_1
-conda=4.7.5=py36_0
-conda-env=2.6.0=h36134e3_0
-conda-package-handling=1.3.10=py36_0
-cryptography=2.4.2=py36ha12b0ac_0
-idna=2.6=py36h8628d0a_1
-libarchive=3.3.3=h786848e_5
-libcxx=4.0.1=h579ed51_0
-libcxxabi=4.0.1=hebd6815_0
-libedit=3.1.20170329=hb402a30_2
-libffi=3.2.1=h475c297_4
-libiconv=1.15=hdd342a3_7
-libxml2=2.9.9=hf6e021a_1
-lz4-c=1.8.1.2=h1de35cc_0
-lzo=2.10=h362108e_2
-ncurses=6.1=h0a44026_0
-openssl=1.1.1c=h1de35cc_1
-pip=10.0.1=py36_0
-pycosat=0.6.3=py36hee92d8f_0
-pycparser=2.18=py36h724b2fc_1
-pyopenssl=18.0.0=py36_0
-pysocks=1.6.8=py36_0
-python=3.6.7=haf84260_0
-python-libarchive-c=2.8=py36_9
-python.app=2=py36_8
-readline=7.0=hc1231fa_4
-requests=2.18.4=py36h4516966_1
-ruamel_yaml=0.15.37=py36h1de35cc_2
-setuptools=39.2.0=py36_0
-six=1.11.0=py36h0e22d5e_1
-sqlite=3.26.0=ha441bb4_0
-tk=8.6.8=ha441bb4_0
-tqdm=4.32.1=py_0
-urllib3=1.22=py36h68b9469_0
-wdm=0.1=pypi_0
-wheel=0.31.1=py36_0
-xz=5.2.4=h1de35cc_4
-yaml=0.1.7=hc338f04_2
-zlib=1.2.11=hf3cbc9b_2
-zstd=1.3.7=h5bba6e5_0
+name: bomm
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - appnope=0.1.0=py36hf537a9a_0
+  - asn1crypto=0.24.0=py36_0
+  - attrs=19.1.0=py36_1
+  - backcall=0.1.0=py36_0
+  - blas=1.0=mkl
+  - bleach=3.1.0=py36_0
+  - bokeh=1.0.4=py36_0
+  - bzip2=1.0.6=h1de35cc_5
+  - ca-certificates=2019.5.15=0
+  - cartopy=0.17.0=py36haea56ea_1
+  - certifi=2019.6.16=py36_1
+  - cffi=1.12.3=py36hb5b8e2f_0
+  - cftime=1.0.0b1=py36h1d22016_0
+  - chardet=3.0.4=py36_1003
+  - click=7.0=py36_0
+  - cloudpickle=0.6.1=py36_0
+  - cryptography=2.3.1=py36hdbc3d79_0
+  - curl=7.61.0=ha441bb4_0
+  - cycler=0.10.0=py36hfc81398_0
+  - cytoolz=0.9.0.1=py36h1de35cc_1
+  - dask=1.0.0=py36_0
+  - dask-core=1.0.0=py36_0
+  - dbus=1.13.6=h90a0687_0
+  - decorator=4.3.0=py36_0
+  - defusedxml=0.6.0=py_0
+  - distributed=1.25.2=py36_0
+  - entrypoints=0.3=py36_0
+  - expat=2.2.6=h0a44026_0
+  - flask=1.1.1=py_0
+  - freetype=2.9.1=hb4e5f40_0
+  - geos=3.7.1=h0a44026_0
+  - gettext=0.19.8.1=h15daf44_3
+  - glib=2.56.2=hd9629dc_0
+  - hdf4=4.2.13=h39711bb_2
+  - hdf5=1.10.2=hfa1e0ec_1
+  - heapdict=1.0.0=py36_2
+  - icu=58.2=h4b95b61_1
+  - intel-openmp=2018.0.3=0
+  - ipykernel=5.1.1=py36h39e3cac_0
+  - ipython=6.4.0=py36_1
+  - ipython_genutils=0.2.0=py36h241746c_0
+  - ipywidgets=7.4.2=py36_0
+  - itsdangerous=1.1.0=py36_0
+  - jedi=0.12.1=py36_0
+  - jinja2=2.10=py36_0
+  - jpeg=9b=he5867d9_2
+  - jsonschema=3.0.1=py36_0
+  - jupyter=1.0.0=py36_7
+  - jupyter_client=5.2.4=py36_0
+  - jupyter_console=5.2.0=py36_1
+  - jupyter_core=4.5.0=py_0
+  - jupyter_dashboards=0.7.0=py36_1000
+  - kiwisolver=1.0.1=py36h0a44026_0
+  - libcurl=7.61.0=hf30b1f0_0
+  - libcxx=4.0.1=h579ed51_0
+  - libcxxabi=4.0.1=hebd6815_0
+  - libedit=3.1.20170329=hb402a30_2
+  - libffi=3.2.1=h475c297_4
+  - libgfortran=3.0.1=h93005f0_2
+  - libiconv=1.15=hdd342a3_7
+  - libnetcdf=4.6.1=h4e6abe9_1
+  - libpng=1.6.34=he12f830_0
+  - libsodium=1.0.16=h3efe00b_0
+  - libssh2=1.8.0=h322a93b_4
+  - libtiff=4.0.9=hcb84e12_2
+  - libxml2=2.9.9=hf6e021a_1
+  - libxslt=1.1.33=h33a18ac_0
+  - locket=0.2.0=py36hca03003_1
+  - lxml=4.3.4=py36hef8c89e_0
+  - markupsafe=1.1.0=py36h1de35cc_0
+  - matplotlib=2.2.3=py36h54f8f79_0
+  - mistune=0.8.4=py36h1de35cc_0
+  - mkl=2018.0.3=1
+  - mkl_fft=1.0.4=py36h5d10147_1
+  - mkl_random=1.0.1=py36h5d10147_1
+  - msgpack-python=0.5.6=py36h04f5b5a_1
+  - nbconvert=5.5.0=py_0
+  - nbformat=4.4.0=py36h827af21_0
+  - ncurses=6.1=h0a44026_0
+  - netcdf4=1.4.1=py36h08833f9_0
+  - notebook=5.7.8=py36_0
+  - numpy=1.14.3=py36h9bb19eb_1
+  - numpy-base=1.14.3=py36h479e554_1
+  - olefile=0.46=py36_0
+  - openssl=1.0.2s=h1de35cc_0
+  - owslib=0.18.0=py_0
+  - packaging=18.0=py36_0
+  - pandas=0.23.0=py36h1702cab_0
+  - pandoc=2.2.3.2=0
+  - pandocfilters=1.4.2=py36_1
+  - parso=0.3.1=py36_0
+  - partd=0.3.9=py36_0
+  - pcre=8.43=h0a44026_0
+  - pexpect=4.6.0=py36_0
+  - pickleshare=0.7.4=py36hf512f8e_0
+  - pillow=5.3.0=py36hb68e598_0
+  - proj4=5.2.0=h0a44026_1
+  - prometheus_client=0.7.1=py_0
+  - prompt_toolkit=1.0.15=py36haeda067_0
+  - psutil=5.4.8=py36h1de35cc_0
+  - ptyprocess=0.6.0=py36_0
+  - pycparser=2.19=py36_0
+  - pyepsg=0.4.0=py36_0
+  - pygments=2.2.0=py36h240cd3f_0
+  - pykdtree=1.3.1=py36h1d22016_2
+  - pyopenssl=19.0.0=py36_0
+  - pyparsing=2.2.0=py36_1
+  - pyproj=1.9.6=py36h9c430a6_0
+  - pyqt=5.9.2=py36h655552a_2
+  - pyrsistent=0.14.11=py36h1de35cc_0
+  - pyshp=2.1.0=py_0
+  - pysocks=1.7.0=py36_0
+  - python=3.6.5=hc167b69_1
+  - python-dateutil=2.7.3=py36_0
+  - pytz=2018.5=py36_0
+  - pyzmq=18.0.0=py36h0a44026_0
+  - qt=5.9.6=h45cd832_2
+  - qtconsole=4.5.1=py_0
+  - readline=7.0=h1de35cc_5
+  - scipy=1.1.0=py36hf1f7d93_0
+  - send2trash=1.5.0=py36_0
+  - setuptools=40.2.0=py36_0
+  - shapely=1.6.4=py36he8793f5_0
+  - simplegeneric=0.8.1=py36_2
+  - sip=4.19.8=py36h0a44026_0
+  - six=1.11.0=py36_1
+  - sortedcontainers=2.1.0=py36_0
+  - sqlite=3.24.0=ha441bb4_0
+  - tblib=1.3.2=py36hda67792_0
+  - terminado=0.8.2=py36_0
+  - testpath=0.4.2=py36_0
+  - tk=8.6.8=ha441bb4_0
+  - toolz=0.9.0=py36_0
+  - tornado=5.1=py36h1de35cc_0
+  - traitlets=4.3.2=py36h65bd3ce_0
+  - wcwidth=0.1.7=py36h8c6ec74_0
+  - webencodings=0.5.1=py36_1
+  - werkzeug=0.15.4=py_0
+  - wheel=0.31.1=py36_0
+  - widgetsnbextension=3.4.2=py36_0
+  - xarray=0.11.0=py36_0
+  - xz=5.2.4=h1de35cc_4
+  - yaml=0.1.7=hc338f04_2
+  - zeromq=4.3.1=h0a44026_3
+  - zict=0.1.3=py36_0
+  - zlib=1.2.11=hf3cbc9b_2
+  - pip:
+    - gsw==3.2.1
+    - idna==2.8
+    - pip==19.0.3
+    - pyyaml==4.2b4
+    - requests==2.21.0
+    - urllib3==1.24.2
+prefix: /Users/danielsantiago/.miniconda/envs/bomm
+

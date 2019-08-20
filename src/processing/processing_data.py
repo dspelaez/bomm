@@ -955,8 +955,6 @@ class ProcessingData(object):
             Z[:,i] = Z[:,i] - np.nanmean(Z[:,i])
             #
             # compute fourier spectrum
-            # TODO: compute spectrum with homemade pwelch, it will allow to
-            # discard the blocks containing nan data.
             ffrq, S[:,i] = welch(Z[:,i], fs=fs, nfft=nfft, overlap=int(nfft/4))
 
         # save wavestaff position for later

@@ -478,21 +478,11 @@ def position_correction(X, A, E, fs=20, fc=0.05, q=5, full=False):
         * Drennan Donelan Madsen Katsaros Terray Flagg 1994, JAOT 11, 1109-1116
     """
 
-    # ======= TEMPORAL PATCH ======= #
-    # We are gonna change the order
-    # of the roll and pitch angles
-    # because we observa a strange
-    # behaviuor in the wave spectr.
-    # E = (E[1], E[0], E[2])
-    # ============================== #
-    
     # substract gravity acceleration effect
     G = vector_rotation((0,0,-9.8), E)
 
     # apply double integration in the frequency domain
-    P = (fft_integration(A[0], fs*q, fc=fc, order=-2), # TODO: WARNING
-         fft_integration(A[1], fs*q, fc=fc, order=-2), # TODO: WARNING
-         fft_integration(A[2], fs*q, fc=fc, order=-2))
+    P = tuple(fft_integration(a, fs*q, fc=fc, order=-2) for a,g in zip(A,G))
     
     # compute the derivative of the euler angles
     D = tuple(np.gradient(e, 1/(fs*q)) for e in E)
@@ -525,9 +515,9 @@ def position_correction(X, A, E, fs=20, fc=0.05, q=5, full=False):
     x_rot, y_rot, z_rot = vector_rotation(curl, (roll, pitch, yaw))
 
     # compute earth-based water position
-    xE = x_obs + x_acc + x_rot
-    yE = y_obs + y_acc + y_rot
-    zE = z_obs + z_acc + z_rot
+    xE = x_obs + x_acc + x_rot * 0
+    yE = y_obs + y_acc + y_rot * 0
+    zE = z_obs + z_acc + z_rot * 0
 
     # return data
     if full:

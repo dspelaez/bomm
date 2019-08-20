@@ -379,4 +379,103 @@
       end subroutine
 !     }}}
 
+!     random phase 1d {{{
+! ===================================================================
+
+      subroutine randomphase_oned(time, frqs, E, eta, ntime, nfrqs)
+
+      ! return the surface elevation asociated with the given
+      ! frequency spectrum
+
+      implicit none
+
+      real*8, intent(in)   :: time(ntime), frqs(nfrqs), E(nfrqs)
+      integer, intent(in)  :: nfrqs, ntime
+      !
+      real*8               :: ampl, omega, phase, df
+      integer              :: j
+      real*8, parameter    :: pi = 3.141592653589793
+      !
+      real*8, intent(out)  :: eta(ntime)
+      !
+      ! delta frequency
+      df = frqs(2) - frqs(1)
+      !
+      ! initialize surface elevation
+      eta(:) = 0.
+      !
+      do j = 1, nfrqs
+          !
+          ampl = sqrt(2. * E(j) * df)
+          omega = 2.*pi*frqs(j)
+          phase = 2.*pi*rand(0) - pi
+          !
+          ! compute one dimensioanl surface elevation
+          eta = eta + ampl * sin(omega * time + phase)
+      !
+      end do
+      
+      end subroutine
+!     }}}
+
+!     random phase 2d {{{
+! ===================================================================
+
+      subroutine randomphase_twod(time, frqs, dirs, E, eta, &
+                                  xgrd, ygrd, nx, ny,       &
+                                  ntime, nfrqs, ndirs)
+
+      ! return the surface elevation asociated with the given
+      ! direction-frequency spectrum
+
+      implicit none
+
+      real*8, intent(in)   :: time(ntime), E(ndirs, nfrqs)
+      real*8, intent(in)   :: frqs(nfrqs), dirs(ndirs)
+      real*8, intent(in)   :: xgrd(ny, nx), ygrd(ny, nx)
+      integer, intent(in)  :: nfrqs, ndirs, ntime, nx, ny
+      !
+      real*8               :: ampl, omega, phase, df, dd
+      real*8               :: kphase(ny, nx), kappa, kx, ky
+      integer              :: i, j, t
+      real*8, parameter    :: g = 9.80
+      real*8, parameter    :: pi = 3.141592653589793
+      !
+      real*8, intent(out)  :: eta(ntime, ny, nx)
+      !
+      ! delta frequency and delta theta
+      df = frqs(2) - frqs(1)
+      dd = (dirs(2) - dirs(1)) * pi/180.
+      !
+      ! initialize surface elevation
+      eta(:,:,:) = 0.
+      !
+      do i = 1, ndirs
+        !
+        do j = 1, nfrqs
+          !
+          ampl = sqrt(2. * E(i, j) * df * dd)
+          omega = 2.*pi*frqs(j)
+          kappa = omega ** 2 / g
+          kx = kappa * cos(dirs(i) * pi/180.)
+          ky = kappa * sin(dirs(i) * pi/180.)
+          phase = 2.*pi*rand(0) - pi
+          !
+          ! compute two dimensioanl surface elevation
+          do t = 1, ntime
+            !
+            kphase = kx*xgrd + ky*ygrd - omega*time(t) + phase
+            eta(t,:,:) = eta(t,:,:) + ampl*cos(kphase)
+            !
+          end do
+          !
+        end do
+        !
+      end do
+
+    end subroutine
+!     }}}
+
+
 ! --- end of file ---
+

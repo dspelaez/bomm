@@ -265,7 +265,35 @@ def randomphase2d(frqs, dirs, S):
     return eta
 # }}}
 
-# plot dirctional spectrum in a polar graph {{{
+# convert directional spectrum to kx-ky {{{
+def convert_to_kxky(frqs, dirs, E):
+    """Returns the E(kx, ky) using linear theory in deep water.
+    
+    Following Holthuijsen's book:
+
+                c * c_g
+    E(kx, ky) = -------  E(w, theta)
+                   w
+
+    Using linear dispersion relation:
+
+        c * c_g       g^2
+    J = --------  =  -----
+           w         2 w^3
+
+    """
+    
+    g = 9.8
+    omega = 2 * np.pi * frqs
+    kappa = omega ** 2 / g
+    kx = kappa[None,:] * np.cos(dirs[:,None] * np.pi / 180.)
+    ky = kappa[None,:] * np.sin(dirs[:,None] * np.pi / 180.)
+    
+    J = g**2 / (2 * omega**3)
+    return J[None,:] * E / (2 * np.pi)
+# }}}
+
+# plot directional spectrum in a polar graph {{{
 def polar_spectrum(frqs, dirs, S, thetam=0, **kwargs):
     """
     This function plots the frequency-direction spectrum or
@@ -414,8 +442,11 @@ def polar_spectrum(frqs, dirs, S, thetam=0, **kwargs):
                 label = "$H_{m0} = %.2f \, \mathrm{m}$\n$\\lambda_p = %.2f \,\mathrm{m}$\
                         \n$\\theta_p = %.1f^\circ$" % (Hs, 2*np.pi*Tp, pdir)
             else:
-                label = "$H_{m0} = %.2f \, \mathrm{m}$\n$T_p = %.2f \,\mathrm{s}$\
-                        \n$\\theta_p = %.1f^\circ$" % (Hs, Tp, pdir)
+                Lp = 9.8 * Tp**2 / (2 * np.pi)
+                label = "$H_{m0} = %.2f \, \mathrm{m}$\
+                       \n$T_p = %.2f \,\mathrm{s}$\
+                       \n$\\lambda_p = %.2f \,\mathrm{m}$\
+                       \n$\\theta_p = %.1f^\circ$" % (Hs, Tp, Lp, pdir)
             ax.text(0.01, 0.01, label, transform=ax.transAxes, ha="left", va="bottom")
         else:
             pass
