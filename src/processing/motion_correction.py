@@ -107,7 +107,7 @@ def complementary_filter(signal_a, signal_b, fs, fm, filter_order=2):
 # }}}
 
 # integration in the frequency domain {{{
-def fft_integration(signal, fs, fc=None, order=-1):
+def fft_integration(data, fs, fc=None, order=-1):
     """Intergration of a signal in the frequency domain using FFT.
     
     This function implements the integration in the time domain by means of the
@@ -128,22 +128,22 @@ def fft_integration(signal, fs, fc=None, order=-1):
     """
 
     # check for nans if more than 10 percents
-    nans = np.isnan(signal)
-    if len(nans.nonzero()[0]) / len(signal) < 0.1:
-        signal[nans] = np.nanmean(signal[~nans])
+    nans = np.isnan(data)
+    if len(nans.nonzero()[0]) / len(data) < 0.1:
+        data[nans] = np.nanmean(data[~nans])
     else:
-        return signal * np.nan
+        return data * np.nan
     
     # if order == 0 do nothing
     if order == 0:
-        return signal
+        return data
 
     # if order > 0 raise an error
     if order > 0:
         raise ValueError("Order must be a negative integer")
 
     # get frequency array
-    N = len(signal)
+    N = len(data)
     freqs = np.fft.fftfreq(N, 1/fs)
     
     # the first element of freqs array is zero, so we have
@@ -154,18 +154,22 @@ def fft_integration(signal, fs, fc=None, order=-1):
     # compute fft of the signal for the non-zero frequencies
     # and apply integration factor
     fft = np.zeros(len(freqs), 'complex')
-    fft[1:] = np.fft.fft(signal)[1:] * factor**order
+    fft[1:] = np.fft.fft(data)[1:] * factor**order
     
     # high pass filter
     if fc is None:
         return np.fft.ifft(fft).real
+    #
     elif isinstance(fc, float) or isinstance(fc, int):
-        ix = abs(freqs) <= fc
-        fft[ix] = 0.
-    elif isinstance(fc, list) or isinstance(fc, tuple):
-        flow, fhigh = fc
-        ix = np.logical_and(abs(freqs) >= flow, abs(freqs) <= fhigh)
-        fft[~ix] = 0.
+        #
+        if False: # <-- ideal filter just in case 
+            ix = abs(freqs) <= fc
+            fft[ix] = 0.
+        #
+        else: # <- freqs response of a 3th order butterworth filter
+            b, a = signal.butter(3, fc, 'high', analog=True)
+            w, h = signal.freqs(b, a, worN=freqs)
+            fft = fft * abs(h)
 
     return np.fft.ifft(fft).real
 # --- }}}
